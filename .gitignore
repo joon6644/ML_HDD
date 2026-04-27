@@ -1,0 +1,32 @@
+# Data
+data/
+*.parquet
+*.csv
+*.zip
+*.7z
+*.sql
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDEs
+.vscode/
+.idea/
+.project
+.pydevproject
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project Specific
+.tmp/
+scratch/
+artifacts/
+logs/
