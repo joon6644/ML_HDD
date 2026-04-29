@@ -17,7 +17,7 @@
         총 열 수(Columns): 27 개
         
         === [2. 상위 5개 데이터 샘플 (생략 없음)] ===
-          serial_number       date  smart_3_raw  smart_4_raw  smart_5_raw  smart_9_raw  smart_10_raw  smart_183_raw  smart_184_raw  smart_187_raw  smart_189_raw  smart_191_raw  smart_192_raw  smart_193_raw  smart_197_raw  smart_198_raw  smart_199_raw  smart_241_raw  smart_242_raw  Total_Reads  seek_error_count  Total_Seeks  failure  timeout_total  timeout_5s  smart_190_raw  smart_194_raw
+          serial_number       date  smart_3_raw  smart_4_raw  smart_5_raw  smart_9_raw  smart_10_raw  smart_183_raw  smart_184_raw  smart_187_raw  smart_189_raw  smart_191_raw  smart_192_raw  smart_193_raw  smart_197_raw  smart_198_raw  smart_199_raw  smart_241_raw  smart_242_raw  Total_Reads  seek_error_count  total_seeks  failure  timeout_total  Timeout_5s  smart_190_raw  smart_194_raw
         0    S3008532_1 2014-04-19            0            2            0          562             0              1              0              0              1              0              1           1541              0              0              0     2721830352     8918128525    101001152                 0     29220189        0              0           0             19             19
         1    S3008532_1 2014-04-20            0            2            0          586             0              1              0              0              1              0              1           1541              0              0              0     2725742872     9298167283     47333632                 0     31344455        0              0           0             19             19
         2    S3008532_1 2014-04-21            0            2            0          610             0              1              0              0              1              0              1           1541              0              0              0     2727616876     9383480381     64054464                 0     32087252        0              0           0             19             19
@@ -44,13 +44,13 @@
         smart_189_raw            643843          0.807849
         smart_191_raw            643843          0.807849
         smart_187_raw            643835          0.807839
-        timeout_total            643835          0.807839
+        Timeout_Total            643835          0.807839
         smart_190_raw            643835          0.807839
-        timeout_5s               643835          0.807839
+        Timeout_5s               643835          0.807839
         smart_241_raw            643834          0.807838
         smart_242_raw            643834          0.807838
         smart_10_raw             643823          0.807824
-        Total_Seeks              643823          0.807824
+        total_seeks              643823          0.807824
         smart_198_raw            643823          0.807824
         smart_193_raw            643823          0.807824
         seek_error_count         643823          0.807824
@@ -90,10 +90,10 @@
         18     smart_242_raw      BIGINT         234  120701120197255          209417265959.08783    378260490686.41986
         19       Total_Reads      BIGINT           0        244140624          121872413.16616563     70461470.00364728
         20  seek_error_count      BIGINT           0            65535          3.1137767945469057    415.29004513649284
-        21       Total_Seeks      BIGINT           0       4294442148           465282428.4418848     289694937.4520153
+        21       total_seeks      BIGINT           0       4294442148           465282428.4418848     289694937.4520153
         22           failure      BIGINT           0                1       0.0007108173881760319  0.026651681667939988
-        23     timeout_total      BIGINT           0            63680          0.9278961579859922    113.67378058130164
-        24        timeout_5s      BIGINT           0            21067          0.3928797624091303     79.20851438897874
+        23     Timeout_Total      BIGINT           0            63680          0.9278961579859922    113.67378058130164
+        24        Timeout_5s      BIGINT           0            21067          0.3928797624091303     79.20851438897874
         25     smart_190_raw      BIGINT          11               97           24.42909014993735     4.883111312823633
         26     smart_194_raw      BIGINT          11               97           24.41146281827874     4.874396579419348
         
@@ -123,12 +123,12 @@
 
 ### 파생 변수 생성
 
-train_raw.parquet으로부터 파생 변수를 생성한 후 그룹 층화 언더샘플링함.
+train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 언더샘플링함 (클래스 불균형은 다름).
 
-- rfe_train.parquet
-    - https://drive.google.com/file/d/1xJ18niwWzdvBWHkMqzGCAO9Z73q4c--e/view?usp=sharing
-- rfe_test.parquet
-    - https://drive.google.com/file/d/1fIe2Pu_mxQOAHHm2QX1rxncSGzYEd6WD/view?usp=sharing
+- rfe_sample_train.parquet
+    - [https://drive.google.com/file/d/11fU3EnwZPIIWyDp-AYiPkxP8g59VIHOm/view?usp=sharing](https://drive.google.com/file/d/1-AReRkLyZIko11HDexNLfqakuXuQaaJ1/view?usp=sharing)
+- rfe_sample_test.parquet
+    - [https://drive.google.com/file/d/1d5rcAzEOiiDwaq3v0w9O-2D2NQji58e3/view?usp=sharing](https://drive.google.com/file/d/1LRo5pJnb5svoN8fhZyhawon2kh-05FaE/view?usp=sharing)
 </aside>
 
 ---
@@ -154,7 +154,7 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 그룹 층화 언�
 
 - 중복 날짜가 있는지 확인함. (없음)
 - 디코딩 및 이상치 처리
-    - [smart_1_raw](https://www.notion.so/smart_1_raw-33814366e96b800cb943c3f8df0aca0e?pvs=21) , [smart_7_raw](https://www.notion.so/smart_7_raw-33814366e96b8043b155eeab57d40028?pvs=21)  디코딩
+    - [smart_1_raw](https://www.notion.so/smart_1_raw-33814366e96b800cb943c3f8df0aca0e?pvs=21) , ‣  디코딩
         
         <aside>
         
@@ -166,14 +166,14 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 그룹 층화 언�
             
         - **V3 데이터셋 반영 결과**
             
-            `smart_1_raw, smart_7_raw` 원본을 삭제하고, 비트 연산을 거친 변수 3개 `Total_Reads`, `Total_Seeks`, `seek_error_count`를 생성함.
+            `smart_1_raw, smart_7_raw` 원본을 삭제하고, 비트 연산을 거친 변수 3개 `Total_Reads`, `total_seeks`, `seek_error_count`를 생성함.
             
         </aside>
         
     
     ```python
     # smart_1 삭제 → Read_Error_Count, Total_Reads
-    # smart_7 삭제 → seek_error_count, Total_Seeks
+    # smart_7 삭제 → seek_error_count, total_seeks
     # - Read_Error_Count는 분산이 0이라 삭제함
     ```
     
@@ -189,14 +189,14 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 그룹 층화 언�
             
         - **V3 데이터셋 반영 결과**
             
-            `smart_188_raw`를 삭제하고, 3가지 변수(`timeout_total`, `timeout_5s`, `Timeout_7_5s`)로 생성함.
+            `smart_188_raw`를 삭제하고, 3가지 변수(`Timeout_Total`, `Timeout_5s`, `Timeout_7_5s`)로 생성함.
             
         </aside>
         
     
     ```python
-    # smart_188 삭제 → timeout_total, timeout_5s, Timeout_7_5s
-    # Timeout_7_5s 삭제 (timeout_5s와 극도로 높은 상관성, 응답 지연이 5초를 넘긴 것부터 매우 심각한 경우)
+    # smart_188 삭제 → Timeout_Total, Timeout_5s, Timeout_7_5s
+    # Timeout_7_5s 삭제 (Timeout_5s와 극도로 높은 상관성, 응답 지연이 5초를 넘긴 것부터 매우 심각한 경우)
     ```
     
     - 분포 확인 및 이상치 처리
@@ -304,9 +304,9 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 그룹 층화 언�
     | **smart_187_raw** | 복구 불가 오류 횟수 |  |
     | **smart_197_raw** | 불안정 섹터 수 |  |
     | **smart_198_raw** | 복구 불가 섹터 수 |  |
-    | **timeout_5s** | 5초 초과 응답 지연 횟수 | 188에서 파생됨 |
+    | **Timeout_5s** | 5초 초과 응답 지연 횟수 | 188에서 파생됨 |
     | **Timeout_7_5s** | 7.5초 초과 응답 지연 횟수 | 188에서 파생됨 |
-    | **timeout_total** | 전체 응답 지연 횟수 | 188에서 파생됨 |
+    | **Timeout_Total** | 전체 응답 지연 횟수 | 188에서 파생됨 |
     | **seek_error_count** | 보이스 코일 액추에이터 탐색 오류 | 7에서 파생됨 |
     | **smart_9_raw** | 누적 사용 시간 |  |
     | **smart_189_raw** | 헤드 정렬 불량 쓰기 횟수 |  |
@@ -316,7 +316,7 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 그룹 층화 언�
     | **smart_241_raw** | 누적 데이터 쓰기량 | 값 매우 큼 |
     | **smart_242_raw** | 누적 데이터 읽기량 | 값 매우 큼 |
     | **Total_Reads** | 총 읽기 섹터 시도 횟수 | 1에서 파생됨 |
-    | **Total_Seeks** | 총 탐색 작업 횟수 | 7에서 파생됨 |
+    | **total_seeks** | 총 탐색 작업 횟수 | 7에서 파생됨 |
     | **smart_3_raw** | 모터 가동 소요 시간 |  |
     | **smart_4_raw** | 모터 온오프 횟수 |  |
     | **smart_10_raw** | 모터 재가동 시도 횟수 |  |
@@ -527,40 +527,37 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 그룹 층화 언�
 | `rfe_sample_diff.parquet` | **기초 데이터**
 원본 데이터(19개) +  차분(18개) - failure - date/serial_number   | 40 - 3 = 37개 |
 | `rfe_sample_ssp_7d.parquet` | **7일 SSP 순수 통계량**
-7일 윈도우가 적용된 핵심 속성(184, 194, 241, 242, Reads, Seeks, 190)의 통계량 | 56 - 2 = 54개 |
+7일 윈도우가 적용된 핵심 속성(184, 194, 241, 242, Reads, Seeks, 190)의 통계량 | 58 - 2 = 56개 |
 | `rfe_sample_ssp_14d.parquet` | **14일 SSP 순수 통계량**
-가장 많은 속성(17개)이 포함된 14일 주기 단기/중기 통계 데이터 | 56 - 2 = 54개 |
+가장 많은 속성(17개)이 포함된 14일 주기 단기/중기 통계 데이터 | 76 - 2 = 74개 |
 | `rfe_sample_ssp_28d.parquet` | **28일 SSP 순수 통계량**
-하드디스크의 장기 노화 상태 및 누적 피로도를 나타내는 28일 주기 데이터 | 56 - 2 = 54개 |
+하드디스크의 장기 노화 상태 및 누적 피로도를 나타내는 28일 주기 데이터 | 76 - 2 = 74개 |
 | `rfe_sample_afm_windowed.parquet` | **윈도우 기반 복합체**
-윈도우형 AFM(20개) | 22 - 2 = 20개 |
+윈도우형 AFM(20개) | 24 - 2 = 22개 |
 | `rfe_sample_afm_daily_status.parquet` | **디스크 상태 이력 (정적/이력)**
-손상 여부 플래그 및 장애 발생 후 경과일 등 | 24 - 2 = 22개 |
+손상 여부 플래그 및 장애 발생 후 경과일 등 | 18 - 2 = 16개 |
 | `rfe_sample_afm_daily_impact.parquet` | **디스크 부하 보고서 (동적/수치)**
-에러 밀도, 작업량 비율 등 수치적으로 모델링된 부하 지표 | 29 - 2 = 27개 |
-| **Total** | **RFE 투입 피처 총 개수 (중복 키 제외 순수 변수)** | **283 - 15 = 268개** |
+에러 밀도, 작업량 비율 등 수치적으로 모델링된 부하 지표 | 30 - 2 = 28개 |
+| **Total** | **RFE 투입 피처 총 개수 (중복 키 제외 순수 변수)** | **319 - 15 = 304개** |
 </aside>
 
 ---
 
 ## **5. 변수 선택**
 
-#### rfe_train, rfe_test 파일 생성
+#### rfe_sample_train, rfe_sample_test 파일 생성
 
 ```markdown
 # RFE용 데이터셋 제작
-1. rfe_train 8 : rfe_test 2
+1. 고장 개체 비율 rfe_sample_train 8 : rfe_sample_test 2
 2. serial_number 단위에서 failure 비율 유지하여 분할
-3. 각 세트에 배정받은 시리얼에 한해 랜덤시드를 사용하여 정상 행 10배수 샘플링
-    - train_seed = 1
-    - test_seed = 2
+3. 학습 세트는 정상 행은 배정받은 개체 내부에서 랜덤시드를 사용하여 고장 행의 10배수 샘플링
+4. 테스트 세트는 정상 행은 배정받은 개체 내부에서 랜덤시드를 사용하여 고장 행의 100배수 샘플링
+    - 원본 불균형 1 : 1405.8이지만 타협한 수치
 - (같은 serial_number는 train과 test에 동시에 존재하면 안 됨)
+- seed = 42
 ```
 
-- RFE 전 변수 제거
-    - RFE는 만능이 아님
-    - RFE는 변수 기여도를 기반으로 작동하기 때문에 지표가 희석될 수 있음
-    - 너무 정보량이 적은 변수, 하위호환 변수 제거
 - 특성 선택 필요성
     
     <aside>
@@ -588,27 +585,28 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 그룹 층화 언�
         - RFE를 돌리면 원본 `smart_5`와 `smart_5_3일_이동평균` 중 예측력이 미세하게 더 높은 단 하나만 살아남고 나머지는 제거됩니다. 이런 식으로 불필요한 시계열 중복 특성을 솎아내고 가장 강력한 특성만 남기면 자연스럽게 15~25개 선으로 최적화됩니다.
     </aside>
     
+- RFE 전 변수 제거
+    - RFE는 만능이 아님
+    - RFE는 변수 기여도를 기반으로 작동하기 때문에 지표가 희석될 수 있음
+    - 너무 정보량이 적은 변수, 하위호환 변수 제거
 - 재귀적 특성 제거(RFE, Recursive Feature Elimination)
     
     <aside>
     
-    RFE는 이름 그대로 "전체 변수에서 시작해 가장 쓸모없는 변수를 반복적으로(Recursive) 쳐내는(Elimination)" 후진 제거(Backward Selection) 기법입니다. 이를 실제 코드와 파이프라인 관점에서 전개하면 다음과 같은 루프를 돕니다.
+    **[RFE(후진 제거 기법) 파이프라인 및 모델 운영 요약]**
     
-    **[RFE Pipeline Loop]**
+    **1. RFE 파이프라인 동작 단계**
     
-    1. **초기 모델 학습:** 생성한 모든 파생 변수(예: 60개)를 포함한 훈련 셋으로 LightGBM 평가기(Estimator)를 학습시킵니다.
-    2. **중요도 평가:** 학습된 모델에서 각 변수의 기여도(Feature Importance)를 추출하여 줄을 세웁니다.
-    3. **최하위 변수 제거:** 중요도가 가장 낮은 변수(가장 기여하지 못한 변수)를 $N$개 제거합니다. (보통 1개씩 제거하면 시간이 너무 오래 걸리므로, 파이프라인 효율을 위해 하위 2~3개씩 Step 단위로 묶어서 제거하기도 합니다.)
-    4. **성능 검증:** 남은 변수들로 다시 교차 검증(CV)을 수행하여 목적 지표(PR-AUC 또는 MCC)를 측정하고 기록합니다.
-    5. **재귀적 반복:** 변수의 개수가 목표치(예: 15~25개)에 도달하거나, 성능 지표가 급격히 하락하는 임계점(Elbow Point)을 만날 때까지 1~4단계를 반복합니다.
+    - **초기 학습:** 전체 파생 변수를 포함하여 모델을 학습시킵니다.
+    - **중요도 산출:** 학습된 모델에서 각 변수의 기여도(Feature Importance)를 추출하여 정렬합니다.
+    - **하위 변수 제거:** 기여도가 가장 낮은 변수를 제거합니다. (연산 효율을 위해 하위 2~3개를 그룹 단위로 제거할 수 있습니다.)
+    - **성능 검증:** 남은 변수들로 교차 검증(CV)을 수행하여 목적 지표(PR-AUC 등)의 변화를 기록합니다.
+    - **반복 수행:** 목표한 변수 개수에 도달하거나, 성능이 급격히 하락하는 임계점(Elbow Point)이 확인될 때까지 위 과정을 재귀적으로 반복합니다.
     
-    ---
+    **2. RFE 내부 LightGBM 파라미터 설정 전략**
     
-    1. **RFE 평가기(Estimator)용 LightGBM 파라미터 전략**
-    
-    RFE 안에서 돌아가는 LightGBM은 **'최종 예측을 수행할 무거운 정예 모델'이 아니라, '어떤 변수가 쓸모없는지를 빠르게 판별하는 스카우터(Scouter)'** 역할을 해야 합니다.
-    
-    RFE 과정 자체만으로도 수십 번의 모델 학습을 반복해야 하므로, 파라미터는 철저히 **'속도(가벼움)'와 '불균형 대처'**에 초점을 맞추어 고정(Static) 값으로 설정하는 것이 정석입니다.
+    - **역할:** RFE 내의 모델은 최종 예측용이 아니라, 불필요한 변수를 신속하게 판별해 내는 도구입니다.
+    - **설정 원칙:** RFE 과정에서만 수십 번의 반복 학습이 발생하므로 동적인 파라미터 튜닝은 배제합니다. 오직 **'연산 속도 확보'**와 **'클래스 불균형 제어'**에만 초점을 맞춘 **고정(Static) 파라미터**를 사용하는 것이 원칙입니다.
     
     ```python
     **권장 파라미터 세팅**
@@ -624,210 +622,55 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 그룹 층화 언�
     
     </aside>
     
-- **RFECV 기반 최적 피처 추출 프로세스핵심 요약**
-    
-    <aside>
-    
-    > **핵심 요약**
-    초기 생성된 모든 후보 피처를 대상으로 모델을 반복 학습시키며, 중요도가 낮은 피처를 순차적으로 제거하여 **PR-AUC 성능을 극대화하는 최적의 피처 조합(Target: 20개)**을 찾아내는 과정
-    > 
-    
-    ### 1️⃣ 데이터 샘플링 및 분할 전략
-    
-    - **언더샘플링 (Under-sampling):** 6,000만 행의 방대한 데이터에서 정보 손실을 최소화하며 연산 효율을 확보하기 위해 모든 고장 데이터를 뽑은 뒤 **정상:고장 = 10:1** 비율로 정상 데이터 샘플링 (약 26만 행).
-    - **StratifiedGroupKFold (5-Fold):**
-        - **Group:** 동일 디스크의 데이터가 훈련/검증셋에 섞여 데이터 누수(Data Leakage)가 발생하는 것을 방지하기 위해 `serial_number` 기준 그룹화.
-        - **Stratified:** 고장(Label 1) 샘플의 극심한 불균형을 고려하여 각 폴드 내 클래스 비율 유지.
-    
-    ### 2️⃣ 반복적 피처 제거 (Recursive Elimination)
-    
-    - **Step 1 (초기 학습):** 전체 후보 피처를 입력하여 모델(LightGBM/XGBoost) 학습.
-    - **Step 2 (중요도 산출):** 학습 과정에서 도출된 **변수 중요도(Feature Importance)**를 기준으로 피처 순위 부여.
-    - **Step 3 (제거 및 기록):** * 중요도가 낮은 피처를 순차적으로 제거 (초반 효율을 위해 `step=10`으로 빠르게 제거 후, 후반부 `step=1`로 정밀 탐색).
-        - 매 단계마다 **5-Fold 교차 검증을 통한 평균 PR-AUC** 기록.
-    
-    **3️⃣ 최적 지점(Elbow Point) 결정**
-    
-    - **성능 곡선 분석:** 피처 수($X$)에 따른 PR-AUC($Y$) 그래프 생성
-    - **Elbow Method 적용:** 피처 수가 줄어듦에도 PR-AUC 성능이 하락하지 않거나, 급격한 하락이 시작되기 직전의 변곡점(Elbow)을 최적의 피처 개수로 선정.
-    - **윈도우 최적화 자동화:** 동일 센서의 여러 윈도우(7, 14, 21, 28일) 중 목적 함수(10일 내 고장 예측)에 가장 적합한 기간의 변수가 자동 생존.
-    
-    ### 4️⃣ 최종 피처 확정 (Target: ~20개)
-    
-    - 모델의 **해석력(Explainability)**과 **운영 효율성**을 고려하여 성능 손실이 미미한 범위 내에서 최소한의 피처셋(약 20개) 확정.
-    - 최종 선택된 피처들을 대상으로 전체 훈련 데이터셋 재학습 및 모델 고도화.
-    </aside>
-    
 
 ### 1. 변수 grouping
 
-```markdown
-## A. 디스크 물리적 손상 / Bad Sector 계열
+변수가 설명하는 의미 기반 그룹
 
-### 직접 손상 플래그
+- 그룹
+    
+    <aside>
+    
+    - 최근 부하 압력
+    - 총 탐색량
+    - 총 읽기량
+    - 총 기록량
+    - 누적 사용량
+    - Burst 이상
+    - Reallocated / Pending
+    - 급성 Spike
+    - Sector 열화
+    - 읽기/쓰기 안정성
+    - Seek 경로 이상
+    - 기본 I/O 이상
+    - 물리 스트레스 상호작용
+    - 기계적 충격
+    - 열 스트레스
+    - 온도 수준
+    - 시스템성 실패
+    - 펌웨어 실패
+    - 지속 악화
+    - 최근 발생 시점
+    - 최초 발생 시점
+    - 과거 누적 발생
+    - 직접 손상 발생
+    </aside>
+    
 
-- s5_damaged
-- s187_damaged
-- s197_damaged
-- s198_damaged
-- seek_damaged
-- timeout_5s_damaged
+[변수 그룹 (json)](https://www.notion.so/json-35014366e96b80e58fb5ea57729c679f?pvs=21) 
 
-### 과거 발생 여부
+### 2. group 내부 중복 변수 제거
 
-- s5_ever_flag
-- s187_ever_flag
+- 그룹 내에서 상관계수가 0.9를 넘는 변수에 대해 가지치기
+    - 규칙 + 도메인 지식 적용
+    1. failure에서 더 뚜렷한 신호 (KS 통계량 기반)
+    2. 안정성 (노이즈 적은)
+    3. 해석 단순성 (고장을 설명하기 쉬운)
 
-### 최초/최근 발생 시점
-
-- s5_days_since_first
-- s187_days_since_first
-- s191_days_since_last
-- s199_days_since_last
-- timeout_total_days_since_last
-
-→ “damage persistence / recency”
-
----
-
-## B. Read / Seek / Timeout / IO 불안정성
-
-### 기본 I/O 이상
-
-- age_weighted_seek_error
-- io_asymmetry_index
-- seek_error_density
-- timeout_read_density
-- timeout_seek_density
-- timeout_severity_ratio
-- timeout_to_uncorrectable_lag1
-
-### Spike / burst
-
-- seek_error_14d_spike_ratio
-- seek_spike_ratio
-- read_spike_ratio
-- write_spike_ratio
-- uncorrectable_spike_ratio
-
-### write 안정성
-
-- write_stability_ratio
-
-→ “I/O path degradation”
-
----
-
-## C. Reallocation / Pending / Uncorrectable
-
-### sector deterioration
-
-- reallocated_pending_ratio
-- pending_to_offline_ratio
-- cumulative_error_score
-- error_growth_ratio
-- error_saturation_score
-- multi_error_coincidence
-
-→ “latent sector collapse”
-
----
-
-## D. Shock / Vibration / Mechanical Stress
-
-### shock 기반
-
-- shock_fatigue_rate
-- shock_seek_interaction
-- log_shock_fly_interaction
-- shock_to_highfly_ratio
-
-### seek + shock
-
-- fatal_crash_interaction
-
-→ “mechanical degradation”
-
----
-
-## E. Thermal / Temperature Stress
-
-- thermal_stress_index
-- temp_error_index
-- thermal_fatigue_integral_7d
-
-→ “thermal degradation”
-
----
-
-## F. Firmware / Recovery Failure / Cascading Failure
-
-- firmware_struggle_index
-- cascading_failure_flag
-- recovery_failure_flag
-- data_corruption_hazard
-- s197_recovery_flag
-- s184_1d_crash_flag
-
-→ “systemic failure risk”
-
----
-
-## G. Workload / Usage Intensity
-
-- age_weighted_workload
-- workload_intensity
-- workload_7d_accel
-
-→ usage pressure
-
----
-
-## H. 특정 SMART raw counter 파생
-
-대표적으로:
-
-- s184_*
-- s190_*
-- s194_*
-- s241_*
-- s242_*
-- total_reads_*
-- total_seeks_*
-
-그리고 각각:
-
-- max
-- sum
-- mean
-- std
-- asfd
-- cid
-- dai
-- zscore
-- ewma
-
-→ “time-series statistical descriptors”
-
-이건 별도 군집으로 봐야 합니다.
-```
-
-### 2. near-zero varience 제거
-
-### 3. group 내부 중복 제거
-
-- Spearman
-- 도메인 지식
-
-### 4. failure / non-failure 분포 차이 검정
-
-- Mann-Whitney U
-- KS test
-
-### 5. RFE
+### 3. 변수 선택
 
 - 변수 기여도(gain)를 기준으로 하위권 변수들을 재귀적으로 탈락시킴
-- 매 진행마다 PR-AUC를 기록하여 그래프를 그림.
+- 매 진행마다 5-Fold의 평균 PR-AUC를 기록하여 그래프를 그림.
 1. 전체 변수에 대해 100개가 남을 때까지 10개씩 탈락시킴
 2. 50개가 남을 때까지 5개씩 탈락시킴
 3. 이후 1개씩 탈락시키며 그래프의 엘보우 포인트를 확인하여 결정함
@@ -926,276 +769,3 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 그룹 층화 언�
     → 잘 맞춘 고장 샘플 1~2개로 마지막 30일 그래프 그리기 (국소적 해석)
     
 - 실무 적용 시 기대효과
-
-
-# 파생변수 
-
-최근 부하 압력	is_warmup_28d	$\mathbb{I}(t_{elapsed} < 28)$	28일 관측 구간 부족 플래그	초기 관측 구간(노이즈) 필터링
-최근 부하 압력	is_warmup_14d	$\mathbb{I}(t_{elapsed} < 14)$	14일 관측 구간 부족 플래그	초기 관측 구간(노이즈) 필터링
-최근 부하 압력	is_warmup_7d	$\mathbb{I}(t_{elapsed} < 7)$	7일 관측 구간 부족 플래그	초기 관측 구간(노이즈) 필터링
-최근 부하 압력	workload_intensity	$\frac{s9_t + 1}{\Delta s241_t + \Delta s242_t + 1}$	누적 사용 시간 대비 총 작업량 비율	나이(누적치) 대비 당일 총 작업량 비율
-최근 부하 압력	age_weighted_workload	$\ln(\lvert\Delta s241_t + \Delta s242_t\rvert + 1) \times \ln(s9_t + 1)$	노후도 기반 일일 작업 부하 가중치	작업 감소(음수) 시 에러 방지용 절댓값 적용
-최근 부하 압력	workload_7d_accel	$(\Delta s241_t + \Delta s242_t) - (\Delta s241_{t-7} + \Delta s242_{t-7})$	총 작업량 7일 가속도	Temporal Diff (유지)
-총 탐색량	total_seeks_28d_ewma	$0.069 \cdot \Delta W_t + 0.931 \cdot E_{t-1}$	총 탐색 작업 28일 지수가중	28일 장기적 기계 탐색 트렌드를 완만히 따라가는 이동평균 지표
-총 탐색량	total_seeks_28d_dai	$\frac{\Delta W_t - \Delta W_{t-27}}{27}$	총 탐색 작업 28일 평균증가량	28일 만성적 추세에서 보여지는 일평균 탐색 증감 기울기
-총 탐색량	total_seeks_28d_cid	$\sqrt{\sum_{i=0}^{27}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	총 탐색 작업 28일 불변거리	28일 장기 시계열 상의 구동 복잡성과 요동 거리 스케일
-총 탐색량	total_seeks_28d_asfd	$\sum_{i=0}^{27} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	총 탐색 작업 28일 차분절대합	28일간 잦은 탐색 횟수 변동으로 쌓인 만성적 물리 구동 피로합
-총 탐색량	total_seeks_28d_zscore	$\frac{\Delta W_t - \mu_{28}}{\sigma_{28} + 1e-5}$	총 탐색 작업 28일 Z스코어	28일 만성 기저 평균을 넘어선 당일의 헤드 탐색 비정상 수치
-총 탐색량	total_seeks_28d_std	$\sqrt{\frac{1}{28}\sum_{i=0}^{27}(\Delta W_{t-i} - \mu_{28})^2}$	총 탐색 작업 28일 차분 편차	28일 장기 만성적인 기계 헤드 동작 횟수의 산포 불규칙성
-총 탐색량	total_seeks_28d_mean	$\frac{1}{28}\sum_{i=0}^{27} \Delta W_{t-i}$	총 탐색 작업 28일 차분 평균	28일 장기간에 걸쳐 평균화된 만성 기계 탐색 기저 부하
-총 탐색량	total_seeks_28d_sum	$\sum_{i=0}^{27} \Delta W_{t-i}$	총 탐색 작업 28일 차분 총합	28일 만성 장기 구동 과정에서 누적된 기계 탐색 부하 총량
-총 탐색량	total_seeks_28d_max	$\max(\Delta W_{t-27}, \dots, \Delta W_t)$	총 탐색 작업 28일 차분 최댓값	28일 내 헤드 구동 기계 부하가 집중된 장기 최대 스파이크 일
-총 탐색량	total_seeks_14d_ewma	$0.133 \cdot \Delta W_t + 0.867 \cdot E_{t-1}$	총 탐색 작업 14일 지수가중	14일 중기 탐색 작업 패턴을 부드럽게 지시하는 트렌드 지표
-총 탐색량	total_seeks_14d_dai	$\frac{\Delta W_t - \Delta W_{t-13}}{13}$	총 탐색 작업 14일 평균증가량	14일 중기 탐색 횟수의 전반적 증감 추세 기울기
-총 탐색량	total_seeks_14d_cid	$\sqrt{\sum_{i=0}^{13}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	총 탐색 작업 14일 불변거리	14일 중기 탐색 부하 시계열의 구조적 복잡도
-총 탐색량	total_seeks_14d_asfd	$\sum_{i=0}^{13} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	총 탐색 작업 14일 차분절대합	14일 중기 탐색 횟수의 지속적인 널뛰기로 인한 변동 피로도
-총 탐색량	total_seeks_14d_zscore	$\frac{\Delta W_t - \mu_{14}}{\sigma_{14} + 1e-5}$	총 탐색 작업 14일 Z스코어	14일 중기 기저 상태를 반영한 당일 탐색 횟수 이상 스케일
-총 탐색량	total_seeks_14d_std	$\sqrt{\frac{1}{14}\sum_{i=0}^{13}(\Delta W_{t-i} - \mu_{14})^2}$	총 탐색 작업 14일 차분 편차	14일 중기 탐색 동작의 요동치는 분산 수준
-총 탐색량	total_seeks_14d_mean	$\frac{1}{14}\sum_{i=0}^{13} \Delta W_{t-i}$	총 탐색 작업 14일 차분 평균	14일간 중기 일평균 헤드 탐색 기계 동작 횟수
-총 탐색량	total_seeks_14d_sum	$\sum_{i=0}^{13} \Delta W_{t-i}$	총 탐색 작업 14일 차분 총합	14일 중기적으로 누적된 헤드 탐색 이동 부하 데미지
-총 탐색량	total_seeks_14d_max	$\max(\Delta W_{t-13}, \dots, \Delta W_t)$	총 탐색 작업 14일 차분 최댓값	14일 내 헤드 구동 액추에이터의 발생 최대 트래픽 스파이크
-총 탐색량	total_seeks_7d_ewma	$0.25 \cdot \Delta W_t + 0.75 \cdot E_{t-1}$	총 탐색 작업 7일 지수가중	7일 내 탐색 트래픽 추세에 지수적으로 민감하게 반응하는 평균
-총 탐색량	total_seeks_7d_dai	$\frac{\Delta W_t - \Delta W_{t-6}}{6}$	총 탐색 작업 7일 평균증가량	7일간 매일 기계 탐색 작업이 늘거나 줄어든 선형 추세
-총 탐색량	total_seeks_7d_cid	$\sqrt{\sum_{i=0}^{6}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	총 탐색 작업 7일 불변거리	7일 단기 헤드 구동 기계 부하 시계열의 복잡성 거리
-총 탐색량	total_seeks_7d_asfd	$\sum_{i=0}^{6} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	총 탐색 작업 7일 차분절대합	7일간 헤드 탐색 횟수의 급증/급감 누적 플래핑(Flapping)
-총 탐색량	total_seeks_7d_zscore	$\frac{\Delta W_t - \mu_7}{\sigma_7 + 1e-5}$	총 탐색 작업 7일 Z스코어	과거 7일 탐색 부하 대비 당일 탐색 시도의 스파이크 지수
-총 탐색량	total_seeks_7d_std	$\sqrt{\frac{1}{7}\sum_{i=0}^{6}(\Delta W_{t-i} - \mu_{7})^2}$	총 탐색 작업 7일 차분 편차	7일간 헤드 탐색 작업의 불규칙한 산포도
-총 탐색량	total_seeks_7d_mean	$\frac{1}{7}\sum_{i=0}^{6} \Delta W_{t-i}$	총 탐색 작업 7일 차분 평균	7일간 단기 일평균 헤드 탐색 구동 부하 빈도
-총 탐색량	total_seeks_7d_sum	$\sum_{i=0}^{6} \Delta W_{t-i}$	총 탐색 작업 7일 차분 총합	7일간 액추에이터 기계 부품이 수행한 탐색 작업 총량
-총 탐색량	total_seeks_7d_max	$\max(\Delta W_{t-6}, \dots, \Delta W_t)$	총 탐색 작업 7일 차분 최댓값	7일 내 디스크 헤드가 트랙을 가장 많이 찾아다닌 일일 피크
-총 읽기량	total_reads_28d_ewma	$0.069 \cdot \Delta W_t + 0.931 \cdot E_{t-1}$	총 읽기 시도 28일 지수가중	28일 장기적 동작 패턴 트렌드를 부드럽게 추종하는 추세
-총 읽기량	total_reads_28d_dai	$\frac{\Delta W_t - \Delta W_{t-27}}{27}$	총 읽기 시도 28일 평균증가량	28일 장기간에 걸친 평균적 동작 빈도 증감 추세 기울기
-총 읽기량	total_reads_28d_cid	$\sqrt{\sum_{i=0}^{27}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	총 읽기 시도 28일 불변거리	28일간 장기 동작 부하 시계열의 복잡한 요동 거리
-총 읽기량	total_reads_28d_asfd	$\sum_{i=0}^{27} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	총 읽기 시도 28일 차분절대합	28일간 동작 빈도 널뛰기로 인해 축적된 장기 피로합
-총 읽기량	total_reads_28d_zscore	$\frac{\Delta W_t - \mu_{28}}{\sigma_{28} + 1e-5}$	총 읽기 시도 28일 Z스코어	28일 장기 평균 기저 상태 대비 당일 읽기 동작 이례성
-총 읽기량	total_reads_28d_std	$\sqrt{\frac{1}{28}\sum_{i=0}^{27}(\Delta W_{t-i} - \mu_{28})^2}$	총 읽기 시도 28일 차분 편차	28일 장기 읽기 동작 횟수의 불규칙 분산 폭
-총 읽기량	total_reads_28d_mean	$\frac{1}{28}\sum_{i=0}^{27} \Delta W_{t-i}$	총 읽기 시도 28일 차분 평균	28일 장기간 평균적으로 감당해온 만성 동작 부하
-총 읽기량	total_reads_28d_sum	$\sum_{i=0}^{27} \Delta W_{t-i}$	총 읽기 시도 28일 차분 총합	28일 동안 드라이브 구동부에 가해진 장기 누적 동작 수
-총 읽기량	total_reads_28d_max	$\max(\Delta W_{t-27}, \dots, \Delta W_t)$	총 읽기 시도 28일 차분 최댓값	28일 내 가장 집중적으로 기계가 동작한 날의 횟수 스파이크
-총 읽기량	total_reads_14d_ewma	$0.133 \cdot \Delta W_t + 0.867 \cdot E_{t-1}$	총 읽기 시도 14일 지수가중	14일간 읽기 횟수 증감 트렌드의 지수가중 이동평균
-총 읽기량	total_reads_14d_dai	$\frac{\Delta W_t - \Delta W_{t-13}}{13}$	총 읽기 시도 14일 평균증가량	14일 중기 일일 동작 횟수 선형 추이 기울기
-총 읽기량	total_reads_14d_cid	$\sqrt{\sum_{i=0}^{13}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	총 읽기 시도 14일 불변거리	14일 중기 읽기 동작 부하 시계열의 요동치는 수준
-총 읽기량	total_reads_14d_asfd	$\sum_{i=0}^{13} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	총 읽기 시도 14일 차분절대합	14일 중기 읽기 동작 횟수의 급변 피로도 거리
-총 읽기량	total_reads_14d_zscore	$\frac{\Delta W_t - \mu_{14}}{\sigma_{14} + 1e-5}$	총 읽기 시도 14일 Z스코어	14일 중기 동작 기준치 대비 당일 작업 폭주 스케일
-총 읽기량	total_reads_14d_std	$\sqrt{\frac{1}{14}\sum_{i=0}^{13}(\Delta W_{t-i} - \mu_{14})^2}$	총 읽기 시도 14일 차분 편차	14일간 읽기 동작 빈도의 중기적 불규칙 산포도
-총 읽기량	total_reads_14d_mean	$\frac{1}{14}\sum_{i=0}^{13} \Delta W_{t-i}$	총 읽기 시도 14일 차분 평균	14일간 디스크 구동부의 중기 일평균 동작 부하 빈도
-총 읽기량	total_reads_14d_sum	$\sum_{i=0}^{13} \Delta W_{t-i}$	총 읽기 시도 14일 차분 총합	14일간 가해진 중기 누적 순수 읽기 횟수 총합
-총 읽기량	total_reads_14d_max	$\max(\Delta W_{t-13}, \dots, \Delta W_t)$	총 읽기 시도 14일 차분 최댓값	14일 내 발생한 하루 기준 읽기 동작 횟수의 최대 피크
-총 읽기량	total_reads_7d_ewma	$0.25 \cdot \Delta W_t + 0.75 \cdot E_{t-1}$	총 읽기 시도 7일 지수가중	7일 내 읽기 동작 빈도 증가 트렌드의 단기 지수가중
-총 읽기량	total_reads_7d_dai	$\frac{\Delta W_t - \Delta W_{t-6}}{6}$	총 읽기 시도 7일 평균증가량	7일간 단기 일일 동작 횟수 증감 추세선 기울기
-총 읽기량	total_reads_7d_cid	$\sqrt{\sum_{i=0}^{6}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	총 읽기 시도 7일 불변거리	7일간 기계 동작 부하의 시계열 복잡도
-총 읽기량	total_reads_7d_asfd	$\sum_{i=0}^{6} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	총 읽기 시도 7일 차분절대합	7일간 동작 횟수 증가/감소가 누적된 총 굴곡 거리
-총 읽기량	total_reads_7d_zscore	$\frac{\Delta W_t - \mu_7}{\sigma_7 + 1e-5}$	총 읽기 시도 7일 Z스코어	과거 7일 동작 평균 대비 당일 횟수 폭주 이상치
-총 읽기량	total_reads_7d_std	$\sqrt{\frac{1}{7}\sum_{i=0}^{6}(\Delta W_{t-i} - \mu_{7})^2}$	총 읽기 시도 7일 차분 편차	7일간 읽기 동작 횟수의 기계적 불규칙 산포
-총 읽기량	total_reads_7d_mean	$\frac{1}{7}\sum_{i=0}^{6} \Delta W_{t-i}$	총 읽기 시도 7일 차분 평균	7일간 일평균 디스크 읽기 동작 횟수
-총 읽기량	total_reads_7d_sum	$\sum_{i=0}^{6} \Delta W_{t-i}$	총 읽기 시도 7일 차분 총합	7일간 드라이브에 가해진 순수 읽기 동작 실행 총 횟수
-총 읽기량	total_reads_7d_max	$\max(\Delta W_{t-6}, \dots, \Delta W_t)$	총 읽기 시도 7일 차분 최댓값	7일 내 하루 기준 디스크 암이 읽기 동작을 수행한 횟수 피크
-총 읽기량	s242_28d_ewma	$0.069 \cdot \Delta W_t + 0.931 \cdot E_{t-1}$	누적 읽기량 28일 지수가중	28일 장기 읽기 부하의 부드러운 지수가중 트렌드
-총 읽기량	s242_28d_dai	$\frac{\Delta W_t - \Delta W_{t-27}}{27}$	누적 읽기량 28일 평균증가량	28일 장기간 읽기 트래픽의 선형 추세 기울기
-총 읽기량	s242_28d_cid	$\sqrt{\sum_{i=0}^{27}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	누적 읽기량 28일 불변거리	28일간 읽기 I/O가 얼마나 요동치며 요청되었는가
-총 읽기량	s242_28d_asfd	$\sum_{i=0}^{27} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	누적 읽기량 28일 차분절대합	28일 읽기 트래픽의 변화 총량 및 장기 굴곡 피로도
-총 읽기량	s242_28d_zscore	$\frac{\Delta W_t - \mu_{28}}{\sigma_{28} + 1e-5}$	누적 읽기량 28일 Z스코어	28일 장기 기저 상태 대비 당일 읽기 폭주 감지
-총 읽기량	s242_28d_std	$\sqrt{\frac{1}{28}\sum_{i=0}^{27}(\Delta W_{t-i} - \mu_{28})^2}$	누적 읽기량 28일 차분 편차	28일간 만성적인 장기 읽기 부하의 불안정성
-총 읽기량	s242_28d_mean	$\frac{1}{28}\sum_{i=0}^{27} \Delta W_{t-i}$	누적 읽기량 28일 차분 평균	28일간 디스크가 지속 감당한 기저 읽기 부하 상태
-총 읽기량	s242_28d_sum	$\sum_{i=0}^{27} \Delta W_{t-i}$	누적 읽기량 28일 차분 총합	28일 동안 기록된 만성 장기 총 읽기 데이터량
-총 읽기량	s242_28d_max	$\max(\Delta W_{t-27}, \dots, \Delta W_t)$	누적 읽기량 28일 차분 최댓값	28일 내 발생한 하루 최대 읽기 데이터 스파이크
-총 읽기량	s242_14d_ewma	$0.133 \cdot \Delta W_t + 0.867 \cdot E_{t-1}$	누적 읽기량 14일 지수가중	최근 14일 내 읽기량 트렌드 민감 지수가중 평균
-총 읽기량	s242_14d_dai	$\frac{\Delta W_t - \Delta W_{t-13}}{13}$	누적 읽기량 14일 평균증가량	14일간 중기 일평균 읽기 부하 선형 트렌드
-총 읽기량	s242_14d_cid	$\sqrt{\sum_{i=0}^{13}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	누적 읽기량 14일 불변거리	14일 중기 읽기 트래픽의 시계열 복잡도 측정
-총 읽기량	s242_14d_asfd	$\sum_{i=0}^{13} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	누적 읽기량 14일 차분절대합	14일간 잦은 읽기 요청 증감의 피로도 누적
-총 읽기량	s242_14d_zscore	$\frac{\Delta W_t - \mu_{14}}{\sigma_{14} + 1e-5}$	누적 읽기량 14일 Z스코어	과거 14일 기준 대비 당일 읽기 부하 이상치 척도
-총 읽기량	s242_14d_std	$\sqrt{\frac{1}{14}\sum_{i=0}^{13}(\Delta W_{t-i} - \mu_{14})^2}$	누적 읽기량 14일 차분 편차	14일간 읽기 부하의 중기적 불규칙 산포도
-총 읽기량	s242_14d_mean	$\frac{1}{14}\sum_{i=0}^{13} \Delta W_{t-i}$	누적 읽기량 14일 차분 평균	14일간 디스크가 처리한 중기 일평균 읽기 부하량
-총 읽기량	s242_14d_sum	$\sum_{i=0}^{13} \Delta W_{t-i}$	누적 읽기량 14일 차분 총합	14일 동안 기록된 순수 중기 총 읽기 데이터량
-총 읽기량	s242_14d_max	$\max(\Delta W_{t-13}, \dots, \Delta W_t)$	누적 읽기량 14일 차분 최댓값	14일 내 발생한 하루 최대 데이터 읽기 부하 피크
-총 읽기량	s242_7d_ewma	$0.25 \cdot \Delta W_t + 0.75 \cdot E_{t-1}$	누적 읽기량 7일 지수가중	최근 7일 내 단기 읽기 부하 폭증 감지 추세
-총 읽기량	s242_7d_dai	$\frac{\Delta W_t - \Delta W_{t-6}}{6}$	누적 읽기량 7일 평균증가량	7일간 일평균 단기 읽기 부하 상승 선형 추세
-총 읽기량	s242_7d_cid	$\sqrt{\sum_{i=0}^{6}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	누적 읽기량 7일 불변거리	7일간 읽기 트래픽 널뛰기 현상 및 복잡도
-총 읽기량	s242_7d_asfd	$\sum_{i=0}^{6} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	누적 읽기량 7일 차분절대합	7일간 읽기 요청 급증/급감을 반복한 총 이동 거리
-총 읽기량	s242_7d_zscore	$\frac{\Delta W_t - \mu_7}{\sigma_7 + 1e-5}$	누적 읽기량 7일 Z스코어	과거 7일 읽기량 대비 당일 폭주 수준 스케일링
-총 읽기량	s242_7d_std	$\sqrt{\frac{1}{7}\sum_{i=0}^{6}(\Delta W_{t-i} - \mu_{7})^2}$	누적 읽기량 7일 차분 편차	7일간 읽기 부하의 불규칙한 산포도
-총 읽기량	s242_7d_mean	$\frac{1}{7}\sum_{i=0}^{6} \Delta W_{t-i}$	누적 읽기량 7일 차분 평균	7일간 디스크가 처리한 단기 일평균 읽기 부하량
-총 읽기량	s242_7d_sum	$\sum_{i=0}^{6} \Delta W_{t-i}$	누적 읽기량 7일 차분 총합	7일 동안 드라이브가 순수하게 읽어낸 총 데이터량
-총 읽기량	s242_7d_max	$\max(\Delta W_{t-6}, \dots, \Delta W_t)$	누적 읽기량 7일 차분 최댓값	7일 내 발생한 하루 최대 데이터 읽기 부하 피크
-총 기록량	s241_28d_ewma	$0.069 \cdot \Delta W_t + 0.931 \cdot E_{t-1}$	누적 쓰기량 28일 지수가중	장기 28일 쓰기량 트렌드 파악 지수가중 이동평균
-총 기록량	s241_28d_dai	$\frac{\Delta W_t - \Delta W_{t-27}}{27}$	누적 쓰기량 28일 평균증가량	28일간 만성적인 일일 쓰기 트래픽 증가/감소 추세
-총 기록량	s241_28d_cid	$\sqrt{\sum_{i=0}^{27}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	누적 쓰기량 28일 불변거리	28일 트래픽 장기 시계열의 꼬불꼬불한 굴곡 수준
-총 기록량	s241_28d_asfd	$\sum_{i=0}^{27} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	누적 쓰기량 28일 차분절대합	28일간 잦은 I/O 전환으로 누적된 장기 부하 피로도
-총 기록량	s241_28d_zscore	$\frac{\Delta W_t - \mu_{28}}{\sigma_{28} + 1e-5}$	누적 쓰기량 28일 Z스코어	장기 28일 기준치 대비 당일 부하의 이상 수치
-총 기록량	s241_28d_std	$\sqrt{\frac{1}{28}\sum_{i=0}^{27}(\Delta W_{t-i} - \mu_{28})^2}$	누적 쓰기량 28일 차분 편차	28일간 쓰기 부하의 장기 만성적 불규칙 수준
-총 기록량	s241_28d_mean	$\frac{1}{28}\sum_{i=0}^{27} \Delta W_{t-i}$	누적 쓰기량 28일 차분 평균	28일간 디스크가 장기적으로 감당한 기저 쓰기 부하
-총 기록량	s241_28d_sum	$\sum_{i=0}^{27} \Delta W_{t-i}$	누적 쓰기량 28일 차분 총합	28일 동안 기록된 만성적인 순수 쓰기 총 데이터량
-총 기록량	s241_28d_max	$\max(\Delta W_{t-27}, \dots, \Delta W_t)$	누적 쓰기량 28일 차분 최댓값	28일 내 발생한 하루 최대 쓰기 데이터 스파이크
-총 기록량	s241_14d_ewma	$0.133 \cdot \Delta W_t + 0.867 \cdot E_{t-1}$	누적 쓰기량 14일 지수가중	최근 14일 중기 쓰기 트렌드 지수가중 이동평균
-총 기록량	s241_14d_dai	$\frac{\Delta W_t - \Delta W_{t-13}}{13}$	누적 쓰기량 14일 평균증가량	14일간 중기 일평균 쓰기 부하 상승 선형 추세
-총 기록량	s241_14d_cid	$\sqrt{\sum_{i=0}^{13}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	누적 쓰기량 14일 불변거리	14일간 중기적 트래픽 복잡도 및 변동성
-총 기록량	s241_14d_asfd	$\sum_{i=0}^{13} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	누적 쓰기량 14일 차분절대합	14일간 중기적 쓰기 부하의 전환 피로도 거리
-총 기록량	s241_14d_zscore	$\frac{\Delta W_t - \mu_{14}}{\sigma_{14} + 1e-5}$	누적 쓰기량 14일 Z스코어	과거 14일 평균 대비 당일 쓰기량 폭주 통계적 척도
-총 기록량	s241_14d_std	$\sqrt{\frac{1}{14}\sum_{i=0}^{13}(\Delta W_{t-i} - \mu_{14})^2}$	누적 쓰기량 14일 차분 편차	14일간 쓰기 부하량의 중기적 불규칙 산포도
-총 기록량	s241_14d_mean	$\frac{1}{14}\sum_{i=0}^{13} \Delta W_{t-i}$	누적 쓰기량 14일 차분 평균	14일간 디스크가 처리한 중기 일평균 쓰기 부하량
-총 기록량	s241_14d_sum	$\sum_{i=0}^{13} \Delta W_{t-i}$	누적 쓰기량 14일 차분 총합	14일 동안 기록된 순수 쓰기 데이터 중기 총량
-총 기록량	s241_14d_max	$\max(\Delta W_{t-13}, \dots, \Delta W_t)$	누적 쓰기량 14일 차분 최댓값	14일 내 발생한 하루 최대 데이터 쓰기 부하 피크
-총 기록량	s241_7d_ewma	$0.25 \cdot \Delta W_t + 0.75 \cdot E_{t-1}$	누적 쓰기량 7일 지수가중	최근 7일 쓰기량 폭증에 가중치를 둔 트렌드
-총 기록량	s241_7d_dai	$\frac{\Delta W_t - \Delta W_{t-6}}{6}$	누적 쓰기량 7일 평균증가량	7일간 일평균 쓰기 부하 상승 선형 추세
-총 기록량	s241_7d_cid	$\sqrt{\sum_{i=0}^{6}(\Delta W_{t-i} - \Delta W_{t-i-1})^2}$	누적 쓰기량 7일 불변거리	7일간 쓰기 트래픽 시계열 복잡도 및 널뛰기 현상
-총 기록량	s241_7d_asfd	$\sum_{i=0}^{6} \lvert \Delta W_{t-i} - \Delta W_{t-i-1} \rvert$	누적 쓰기량 7일 차분절대합	7일간 쓰기 부하의 급증/급감을 반복한 총 이동 거리
-총 기록량	s241_7d_zscore	$\frac{\Delta W_t - \mu_7}{\sigma_7 + 1e-5}$	누적 쓰기량 7일 Z스코어	과거 7일 평균 대비 당일 쓰기량 폭주의 이상 수치
-총 기록량	s241_7d_std	$\sqrt{\frac{1}{7}\sum_{i=0}^{6}(\Delta W_{t-i} - \mu_{7})^2}$	누적 쓰기량 7일 차분 편차	7일간 쓰기 부하량의 불규칙한 요동(산포도)
-총 기록량	s241_7d_mean	$\frac{1}{7}\sum_{i=0}^{6} \Delta W_{t-i}$	누적 쓰기량 7일 차분 평균	7일간 디스크가 처리한 일평균 쓰기 부하량
-총 기록량	s241_7d_sum	$\sum_{i=0}^{6} \Delta W_{t-i}$	누적 쓰기량 7일 차분 총합	7일 동안 기록된 순수 쓰기 데이터 총량
-총 기록량	s241_7d_max	$\max(\Delta W_{t-6}, \dots, \Delta W_t)$	누적 쓰기량 7일 차분 최댓값	7일 내 발생한 하루 최대 데이터 쓰기 부하 피크
-Burst 이상	s192_14d_burst	$\sum_{i=0}^{13} \Delta s192_{t-i}$	14일 강제 종료 단기 폭주량	[이름 수정] Density $\rightarrow$ Burst로 의미 일치
-Burst 이상	s189_28d_highfly_burst	$\sum_{i=0}^{27} \Delta s189_{t-i}$	28일간 불량 쓰기 증가량	단순 변화량 윈도우 합산 (유지)
-Burst 이상	s187_14d_burst_index	$\sum_{i=0}^{13} \left( \Delta s187_{t-i} \cdot \mathbb{I}(\Delta s187_{t-i} > 0) \right)$	복구 불가 오류 횟수 중기 누적 증가량	증가된(양수) 부분만 필터링 합산 (유지)
-Burst 이상,Reallocated / Pending	s5_relative_score_14d	$\frac{s5_t}{P_{95}(s5_{t-14:t-1}) + 1}$	14일 최고점 대비 당일 불량 섹터 비율	[이상치 방어] $\max$가 유발하는 정규화 왜곡을 막기 위해 $P_{95}$ 백분위수로 대체
-Burst 이상,급성 Spike	read_spike_ratio	$\frac{\Delta s242_t}{\left( \frac{1}{7}\sum_{i=1}^{7} \Delta s242_{t-i} \right) + 1}$	7일 평균 대비 당일 읽기량 폭주 비율	당일($t$) 제외 과거 7일 기준 (유지)
-Burst 이상	s189_28d_sum	$\sum_{i=0}^{27} \Delta E_{t-i}$	헤드 정렬 불량 쓰기 28일 총합	28일 내 발생한 기계적 구동 불안정성 누적 스트레스
-Burst 이상	s189_28d_max	$\max(\Delta E_{t-27}, \dots, \Delta E_t)$	헤드 정렬 불량 쓰기 28일 최댓값	28일 내 발생한 헤드 정렬 불량 쓰기의 최대 피크
-Burst 이상,Sector 열화	s187_14d_sum	$\sum_{i=0}^{13} \Delta E_{t-i}$	복구 불가 오류 14일 총합	14일 내 발생한 치명적 복구 불가 에러 누적량
-Burst 이상,Sector 열화	s187_14d_max	$\max(\Delta E_{t-13}, \dots, \Delta E_t)$	복구 불가 오류 14일 최댓값	14일 내 발생한 복구 불가(Uncorrectable) 에러 피크
-급성 Spike	write_spike_ratio	$\frac{\Delta s241_t}{\left( \frac{1}{7}\sum_{i=1}^{7} \Delta s241_{t-i} \right) + 1}$	7일 평균 대비 당일 쓰기량 폭주 비율	$\Delta$ 기반 폭주 연산 (유지)
-급성 Spike	uncorrectable_spike_ratio	$\frac{\Delta s198_t}{\left( \frac{1}{14}\sum_{i=1}^{14} \Delta s198_{t-i} \right) + 1}$	복구 불가 섹터 중기 폭증 비율	$\Delta$ 기반 폭주 연산 (유지)
-급성 Spike	seek_spike_ratio	$\frac{\Delta Total\_Seeks_t}{\left( \frac{1}{7}\sum_{i=1}^{7} \Delta Total\_Seeks_{t-i} \right) + 1}$	7일 평균 대비 당일 탐색 폭주 비율	$\Delta$ 기반 폭주 연산 (유지)
-급성 Spike	seek_error_14d_spike_ratio	$\frac{\max(0, \Delta Seek\Error_t)}{AVG{14d}(\max(0, \Delta Seek\Error_{t-i})) + 1}$	탐색 오류 14일 대비 이상치 비율	[노이즈 방어] 희소 이벤트 폭주를 막기 위해 분모를 SMA에서 EMA로 교체
-읽기/쓰기 안정성	write_stability_ratio	$\frac{s189_t + 1}{\Delta s241_t + 1}$	쓰기량 대비 헤드 정렬 불량률	당일 쓰기량 대비 누적 헤드 정렬 불량 비율
-읽기/쓰기 안정성	s183_28d_sum	$\sum_{i=0}^{27} \Delta E_{t-i}$	SATA 속도 저하 28일 총합	28일 내 SATA 속도 저하 장기 누적 발생 횟수
-읽기/쓰기 안정성	s183_28d_max	$\max(\Delta E_{t-27}, \dots, \Delta E_t)$	SATA 속도 저하 28일 최댓값	28일 내 SATA 속도 저하 현상의 최대 피크
-읽기/쓰기 안정성	s183_14d_sum	$\sum_{i=0}^{13} \Delta E_{t-i}$	SATA 속도 저하 14일 총합	14일 내 SATA 속도 저하 현상 누적 발생 횟수
-읽기/쓰기 안정성	s183_14d_max	$\max(\Delta E_{t-13}, \dots, \Delta E_t)$	SATA 속도 저하 14일 최댓값	14일 내 SATA 속도 저하 현상의 최대 피크
-Seek 경로 이상	age_weighted_seek_error	$\Delta Seek\_Error_t \times s9_t$	노후도 대비 탐색 오류 심각도	당일 발생량과 누적 사용 시간 곱셈
-Seek 경로 이상	timeout_seek_density	$\frac{Timeout\_Total_t}{Total\_Seeks_t + 1}$	탐색 작업 대비 에러율 (밀도)	역방향 뒤집어 Density로 통일
-Seek 경로 이상	seek_error_density	$\frac{Seek\_Error\_Count_t}{Total\_Seeks_t + 1}$	탐색당 탐색 오류 밀도	역방향 뒤집어 Density로 통일
-Seek 경로 이상	seek_error_28d_sum	$\sum_{i=0}^{27} \Delta E_{t-i}$	탐색 오류 28일 총합	28일 내 기계 구동부 탐색 실패 장기 누적 횟수
-Seek 경로 이상	seek_error_28d_max	$\max(\Delta E_{t-27}, \dots, \Delta E_t)$	탐색 오류 28일 최댓값	28일 내 액추에이터 탐색 실패 횟수의 최대 피크
-Seek 경로 이상	seek_error_14d_sum	$\sum_{i=0}^{13} \Delta E_{t-i}$	탐색 오류 14일 총합	14일 내 기계 구동부 탐색 실패 누적 횟수
-Seek 경로 이상	seek_error_14d_max	$\max(\Delta E_{t-13}, \dots, \Delta E_t)$	탐색 오류 14일 최댓값	14일 내 액추에이터 탐색 실패 횟수의 최대 피크
-기본 I/O 이상	s199_days_since_last	$\begin{cases} t - \max\{\tau \mid \max(0, \Delta s199_\tau) > 0\}, & \text{if } \exists \tau \\ -1, & \text{otherwise} \end{cases}$	통신 오류 증가 이후 무사고 경과일	[표준 cases] 순수 증가 이벤트 기준
-기본 I/O 이상	timeout_to_uncorrectable_lag1	$\max(0, \Delta Timeout\_Total_t) \times \max(0, \Delta s198_{t-1})$	시차 결합 지수	어제 불량 발생 $\times$ 오늘 지연 발생
-기본 I/O 이상	timeout_severity_ratio	$\frac{Timeout\_Total_t + 1}{Timeout\_5s_t + 1}$	타임아웃 심각도 비율	전체 타임아웃 대비 치명적 지연(5s) 비율
-기본 I/O 이상	timeout_read_density	$\frac{Timeout\_Total_t}{Total\_Reads_t + 1}$	읽기 작업 대비 에러율 (밀도)	역방향 뒤집어 Density로 통일
-기본 I/O 이상	s199_error_density	$\frac{s199_t}{Total\_Reads_t + Total\_Seeks_t + 1}$	작업당 통신 연결 오류 밀도	역방향 뒤집어 Density로 통일
-기본 I/O 이상	io_asymmetry_index	$\frac{\lvert\Delta s241_t - \Delta s242_t\rvert}{\Delta s241_t + \Delta s242_t + 1}$	읽기/쓰기 작업 비대칭 지수	작업량 차이의 절댓값을 전체로 나눔
-기본 I/O 이상	s199_14d_burst	$\sum_{i=0}^{13} \Delta s199_{t-i}$	14일간 통신 오류 단기 폭주량	단순 변화량 윈도우 합산 (유지)
-기본 I/O 이상	timeout_total_28d_sum	$\sum_{i=0}^{27} \Delta E_{t-i}$	전체 지연 28일 총합	28일 내 펌웨어 응답 지연 현상 장기 누적 횟수
-기본 I/O 이상	timeout_total_28d_max	$\max(\Delta E_{t-27}, \dots, \Delta E_t)$	전체 지연 28일 최댓값	28일 내 발생한 타임아웃 횟수의 최대 피크
-기본 I/O 이상	timeout_total_14d_sum	$\sum_{i=0}^{13} \Delta E_{t-i}$	전체 지연 14일 총합	14일 내 펌웨어 응답 지연 현상 누적 횟수
-기본 I/O 이상	timeout_total_14d_max	$\max(\Delta E_{t-13}, \dots, \Delta E_t)$	전체 지연 14일 최댓값	14일 내 발생한 타임아웃 횟수의 최대 피크
-기본 I/O 이상	timeout_5s_28d_sum	$\sum_{i=0}^{27} \Delta E_{t-i}$	5초 지연 28일 총합	28일 내 치명적 펌웨어 멈춤 장기 누적 발생 횟수
-기본 I/O 이상	timeout_5s_28d_max	$\max(\Delta E_{t-27}, \dots, \Delta E_t)$	5초 지연 28일 최댓값	28일 내 발생한 5초 초과 I/O 펜딩의 최대 피크
-기본 I/O 이상	timeout_5s_14d_sum	$\sum_{i=0}^{13} \Delta E_{t-i}$	5초 지연 14일 총합	14일 내 치명적 펌웨어 멈춤 현상의 누적 발생 횟수
-기본 I/O 이상	timeout_5s_14d_max	$\max(\Delta E_{t-13}, \dots, \Delta E_t)$	5초 지연 14일 최댓값	14일 내 발생한 5초 초과 I/O 펜딩(멈춤)의 단기 피크
-기본 I/O 이상	s199_28d_sum	$\sum_{i=0}^{27} \Delta E_{t-i}$	통신 오류 28일 총합	28일 내 통신 에러 누적 발생 장기 횟수 합산
-기본 I/O 이상	s199_28d_max	$\max(\Delta E_{t-27}, \dots, \Delta E_t)$	통신 오류 28일 최댓값	28일 내 컨트롤러 간 통신 에러의 최대 피크
-기본 I/O 이상	s199_14d_sum	$\sum_{i=0}^{13} \Delta E_{t-i}$	통신 오류 14일 총합	14일 내 통신 에러 누적 발생 횟수 합산
-기본 I/O 이상	s199_14d_max	$\max(\Delta E_{t-13}, \dots, \Delta E_t)$	통신 오류 14일 최댓값	14일 내 컨트롤러 간 통신 에러(CRC)의 최대 피크
-물리 스트레스 상호작용	log_shock_fly_interaction	$\ln(1 + \lvert\Delta s191_t \times \Delta s189_t\rvert) \times \text{sgn}(\Delta s191_t \times \Delta s189_t)$	외부 충격 및 헤드 비행 오류 동시 발생 심각도	로그 내 음수 충돌 방지 및 부호 복원
-물리 스트레스 상호작용	fatal_crash_interaction	$\Delta Timeout\_5s_t \times \Delta s187_t$	응답 지연 및 복구 불가 오류 결합 지수	변화량 기준 단순 곱셈
-물리 스트레스 상호작용	shock_to_highfly_ratio	$\frac{\sum_{i=0}^{27} \lvert\Delta s191_{t-i}\rvert + 1}{\sum_{i=0}^{27} \lvert\Delta s189_{t-i}\rvert + 1}$	충격 대비 헤드 불안정 전이 비율	[음수 상쇄 방어] 절댓값(\lvert, \rvert) 씌워서 순수 누적 충격량만 비교
-기계적 충격	s191_days_since_last	$\begin{cases} t - \max\{\tau \mid \max(0, \Delta s191_\tau) > 0\}, & \text{if } \exists \tau \\ -1, & \text{otherwise} \end{cases}$	외부 충격 발생 이후 무사고 경과일	[표준 cases] 순수 증가 이벤트 기준
-기계적 충격	shock_seek_interaction	$\Delta s191_t \times \Delta Seek\_Error_t$	충격 및 탐색 오류 동시 발생 결합 지수	당일 변화량 기준 단순 곱셈
-기계적 충격	shock_fatigue_rate	$\frac{s191_t}{s9_t + 1}$	시간당 외부 충격 누적 피로도	역방향 뒤집어 Rate로 통일
-기계적 충격	s191_28d_sum	$\sum_{i=0}^{27} \Delta E_{t-i}$	외부 충격 28일 총합	28일 내 장기 누적된 외부 물리 충격 횟수 합산
-기계적 충격	s191_28d_max	$\max(\Delta E_{t-27}, \dots, \Delta E_t)$	외부 충격 28일 최댓값	28일 내 발생한 외부 물리적 충격의 최대치
-기계적 충격	s191_14d_sum	$\sum_{i=0}^{13} \Delta E_{t-i}$	외부 충격 14일 총합	14일 내 누적된 외부 물리 충격 횟수 합산
-기계적 충격	s191_14d_max	$\max(\Delta E_{t-13}, \dots, \Delta E_t)$	외부 충격 14일 최댓값	14일 내 발생한 외부 물리적 충격(G-Sense)의 최대치
-열 스트레스	temp_error_index	$\max(0, s194_t - 40) \times E_t$	고온 환경 에러 발생 지수	40도 이하 강제 0 처리 후 당일 에러 총합 곱셈
-열 스트레스	thermal_fatigue_integral_7d	$\sum_{i=0}^{6} \max(0, s194_{t-i} - 40)$	7일간 40도 초과 열 피로 누적량(면적)	Physics-style 적분 연산 (유지)
-열 스트레스	s190_28d_ewma	$0.069 \cdot T_t + 0.931 \cdot E_{t-1}$	기류 온도 28일 지수가중	장기 28일 내 온도 변화 추이의 지수가중 이동평균
-열 스트레스	s190_28d_dai	$\frac{T_t - T_{t-27}}{27}$	기류 온도 28일 평균증가량	28일간 만성적인 쿨링 성능 저하 여부 추세
-열 스트레스	s190_28d_cid	$\sqrt{\sum_{i=0}^{27}(T_{t-i} - T_{t-i-1})^2}$	기류 온도 28일 불변거리	28일 온도 시계열 장기 복잡도 및 누적 열충격
-열 스트레스	s190_28d_asfd	$\sum_{i=0}^{27} \lvert T_{t-i} - T_{t-i-1} \rvert$	기류 온도 28일 차분절대합	28일 장기적 온도 변화로 누적된 열 피로도 총합
-열 스트레스	s190_28d_zscore	$\frac{T_t - \mu_{28}}{\sigma_{28} + 1e-5}$	기류 온도 28일 Z스코어	장기 28일 평균 대비 당일 온도의 통계적 이상 수치
-열 스트레스	s190_28d_std	$\sqrt{\frac{1}{28}\sum_{i=0}^{27}(T_{t-i} - \mu_{28})^2}$	기류 온도 28일 표준편차	28일간 기류 온도의 장기 불규칙 산포도
-열 스트레스	s190_28d_mean	$\frac{1}{28}\sum_{i=0}^{27} T_{t-i}$	기류 온도 28일 평균	28일간 계절성 포함 평균 내부 기류 온도 상태
-열 스트레스	s190_28d_max	$\max(T_{t-27}, \dots, T_t)$	기류 온도 28일 최댓값	28일간 기록된 내부 기류 온도의 최대치
-열 스트레스	s190_14d_ewma	$0.133 \cdot T_t + 0.867 \cdot E_{t-1}$	기류 온도 14일 지수가중	최근 14일 내 기류 온도 변화의 지수가중 이동평균
-열 스트레스	s190_14d_dai	$\frac{T_t - T_{t-13}}{13}$	기류 온도 14일 평균증가량	14일간 일평균 내부 기류 온도 상승/하락 선형 추세
-열 스트레스	s190_14d_cid	$\sqrt{\sum_{i=0}^{13}(T_{t-i} - T_{t-i-1})^2}$	기류 온도 14일 불변거리	14일간 온도 시계열의 복잡도 및 열충격 스케일
-열 스트레스	s190_14d_asfd	$\sum_{i=0}^{13} \lvert T_{t-i} - T_{t-i-1} \rvert$	기류 온도 14일 차분절대합	14일간 냉각/발열을 오가며 발생한 중기 열 변화 거리
-열 스트레스	s190_14d_zscore	$\frac{T_t - \mu_{14}}{\sigma_{14} + 1e-5}$	기류 온도 14일 Z스코어	과거 14일 평균 대비 당일 온도의 통계적 이상 수치
-열 스트레스	s190_14d_std	$\sqrt{\frac{1}{14}\sum_{i=0}^{13}(T_{t-i} - \mu_{14})^2}$	기류 온도 14일 표준편차	14일간 내부 기류 온도의 불규칙한 산포도
-열 스트레스	s190_14d_mean	$\frac{1}{14}\sum_{i=0}^{13} T_{t-i}$	기류 온도 14일 평균	14일간 평균 내부 기류 온도 상태
-열 스트레스	s190_14d_max	$\max(T_{t-13}, \dots, T_t)$	기류 온도 14일 최댓값	14일간 기록된 내부 기류 온도의 최대치
-열 스트레스	s190_7d_ewma	$0.25 \cdot T_t + 0.75 \cdot EWMA_{t-1}$	기류 온도 7일 지수가중	최근 7일 내 급성 냉각 문제에 가중치를 둔 추세
-열 스트레스	s190_7d_dai	$\frac{T_t - T_{t-6}}{6}$	기류 온도 7일 평균증가량	7일간 일평균 내부 기류 온도 상승/하락 선형 추세
-열 스트레스	s190_7d_cid	$\sqrt{\sum_{i=0}^{6}(T_{t-i} - T_{t-i-1})^2}$	기류 온도 7일 불변거리	7일간 온도 시계열의 복잡도 및 열충격 스케일
-열 스트레스	s190_7d_asfd	$\sum_{i=0}^{6} \lvert T_{t-i} - T_{t-i-1} \rvert$	기류 온도 7일 차분절대합	7일간 냉각/발열을 오가며 발생한 총 열 변화 거리
-열 스트레스	s190_7d_zscore	$\frac{T_t - \mu_7}{\sigma_7 + 1e-5}$	기류 온도 7일 Z스코어	과거 7일 평균 대비 당일 온도의 통계적 이상 수치
-열 스트레스	s190_7d_std	$\sqrt{\frac{1}{7}\sum_{i=0}^{6}(T_{t-i} - \mu_{7})^2}$	기류 온도 7일 표준편차	7일간 내부 기류 온도의 불규칙한 산포도
-열 스트레스	s190_7d_mean	$\frac{1}{7}\sum_{i=0}^{6} T_{t-i}$	기류 온도 7일 평균	7일간 평균 내부 기류 온도 상태
-온도 수준	thermal_stress_index	$\max(0, s194_t - 40)^2 \times \Delta s241_t$	고온 스트레스 및 누적 쓰기량 결합 지수	40도 초과분에 가중치(제곱) 부여
-온도 수준	s194_over40_7d_count	$\sum_{i=0}^{6} \mathbb{I}(s194_{t-i} > 40)$	7일 중 온도가 40도를 초과한 일수	조건 기반 카운트 (유지)
-온도 수준	s194_28d_ewma	$0.069 \cdot T_t + 0.931 \cdot E_{t-1}$	드라이브 온도 28일 지수가중	장기 28일 내 발열 트렌드의 지수가중 이동평균
-온도 수준	s194_28d_dai	$\frac{T_t - T_{t-27}}{27}$	드라이브 온도 28일 증가량	28일간 일평균 장기 만성 온도 상승 선형 추세
-온도 수준	s194_28d_cid	$\sqrt{\sum_{i=0}^{27}(T_{t-i} - T_{t-i-1})^2}$	드라이브 온도 28일 거리	28일간 드라이브 표면에 누적된 만성적 열 충격 스케일
-온도 수준	s194_28d_asfd	$\sum_{i=0}^{27} \lvert T_{t-i} - T_{t-i-1} \rvert$	드라이브 온도 28일 차분합	28일간 드라이브에 누적된 만성 열 피로도 총합
-온도 수준	s194_28d_zscore	$\frac{T_t - \mu_{28}}{\sigma_{28} + 1e-5}$	드라이브 온도 28일 Z스코어	과거 28일 평균 발열 대비 당일의 장기 과열 이상치
-온도 수준	s194_28d_std	$\sqrt{\frac{1}{28}\sum_{i=0}^{27}(T_{t-i} - \mu_{28})^2}$	드라이브 온도 28일 편차	28일간 온도 산포에 따른 장기간의 부하 불규칙성
-온도 수준	s194_28d_mean	$\frac{1}{28}\sum_{i=0}^{27} T_{t-i}$	드라이브 온도 28일 평균	28일간 만성적인 드라이브 평균 발열 상태
-온도 수준	s194_28d_max	$\max(T_{t-27}, \dots, T_t)$	드라이브 온도 28일 최댓값	28일간 기록된 드라이브 표면 온도 장기 최대치
-온도 수준	s194_14d_ewma	$0.133 \cdot T_t + 0.867 \cdot E_{t-1}$	드라이브 온도 14일 지수가중	14일 내 드라이브 온도 변화의 지수가중 이동평균
-온도 수준	s194_14d_dai	$\frac{T_t - T_{t-13}}{13}$	드라이브 온도 14일 증가량	14일간 일평균 드라이브 온도 선형 증가 추세
-온도 수준	s194_14d_cid	$\sqrt{\sum_{i=0}^{13}(T_{t-i} - T_{t-i-1})^2}$	드라이브 온도 14일 거리	14일간 드라이브 표면에 가해진 중기 열 충격
-온도 수준	s194_14d_asfd	$\sum_{i=0}^{13} \lvert T_{t-i} - T_{t-i-1} \rvert$	드라이브 온도 14일 차분합	14일간 드라이브에 발생한 중기 열 변화량 누적
-온도 수준	s194_14d_zscore	$\frac{T_t - \mu_{14}}{\sigma_{14} + 1e-5}$	드라이브 온도 14일 Z스코어	과거 14일 발열 대비 당일의 중기 과열 이상치
-온도 수준	s194_14d_std	$\sqrt{\frac{1}{14}\sum_{i=0}^{13}(T_{t-i} - \mu_{14})^2}$	드라이브 온도 14일 편차	14일간 드라이브 온도의 중기 산포도
-온도 수준	s194_14d_mean	$\frac{1}{14}\sum_{i=0}^{13} T_{t-i}$	드라이브 온도 14일 평균	14일간 드라이브 평균 발열 상태
-온도 수준	s194_14d_max	$\max(T_{t-13}, \dots, T_t)$	드라이브 온도 14일 최댓값	14일간 기록된 드라이브 표면 온도의 중기 최대치
-온도 수준	s194_7d_ewma	$0.25 \cdot T_t + 0.75 \cdot EWMA_{t-1}$	드라이브 온도 7일 지수가중	7일 내 드라이브 과열 상태에 가중치를 둔 추세
-온도 수준	s194_7d_dai	$\frac{T_t - T_{t-6}}{6}$	드라이브 온도 7일 증가량	7일간 일평균 드라이브 온도 선형 증가 추세
-온도 수준	s194_7d_cid	$\sqrt{\sum_{i=0}^{6}(T_{t-i} - T_{t-i-1})^2}$	드라이브 온도 7일 거리	7일간 드라이브 표면에 가해진 단기 열 충격
-온도 수준	s194_7d_asfd	$\sum_{i=0}^{6} \lvert T_{t-i} - T_{t-i-1} \rvert$	드라이브 온도 7일 차분합	7일간 드라이브 수축/팽창 변화의 이동 거리
-온도 수준	s194_7d_zscore	$\frac{T_t - \mu_7}{\sigma_7 + 1e-5}$	드라이브 온도 7일 Z스코어	과거 7일 발열 대비 당일의 비정상적 과열 감지
-온도 수준	s194_7d_std	$\sqrt{\frac{1}{7}\sum_{i=0}^{6}(T_{t-i} - \mu_{7})^2}$	드라이브 온도 7일 편차	7일간 드라이브 온도의 불안정한 요동 수준
-온도 수준	s194_7d_mean	$\frac{1}{7}\sum_{i=0}^{6} T_{t-i}$	드라이브 온도 7일 평균	7일간 드라이브 평균 발열 상태
-온도 수준	s194_7d_max	$\max(T_{t-6}, \dots, T_t)$	드라이브 온도 7일 최댓값	7일간 기록된 드라이브 표면 온도의 단기 최대치
-시스템성 실패	cascading_failure_flag	$\mathbb{I}(\Delta s197_t > 0 \land \Delta Timeout\_Total_t > 0)$	결함 도미노 연쇄 발생 플래그	대기 섹터와 지연 시간 동시 증가
-시스템성 실패	zero_to_hero_count	$\sum_{k \in \mathcal{K}} \mathbb{I}(s_{k,t} > 0 \land s_{k,t-1} = 0)$	0이었다가 갑자기 튄 지표의 개수	[집합 K 확정] 타겟 변수 명확화
-시스템성 실패	s184_1d_crash_flag	$\mathbb{I}(\Delta s184_t > 0)$	치명적 패리티 오류 1일 발생 플래그	단순 발생 여부 확인
-시스템성 실패	data_corruption_hazard	$\mathbb{I}(\Delta s184_t > 0 \lor \Delta s199_t > 0)$	논리적 데이터 오염 위험 경고 플래그	패리티 오류 또는 통신 오류 발생
-시스템성 실패	s184_14d_sum	$\sum_{i=0}^{13} \Delta E_{t-i}$	전송 경로 오류 14일 총합	14일 내 발생한 전송 경로 오류 장기 누적 데미지
-시스템성 실패	s184_14d_max	$\max(\Delta E_{t-13}, \dots, \Delta E_t)$	전송 경로 오류 14일 최댓값	14일 내 발생한 전송 경로 오류 최대 피크
-시스템성 실패	s184_7d_sum	$\sum_{i=0}^{6} \Delta E_{t-i}$	전송 경로 오류 7일 총합	7일 내 발생한 전송 경로 오류 누적 데미지
-시스템성 실패	s184_7d_max	$\max(\Delta E_{t-6}, \dots, \Delta E_t)$	전송 경로 오류 7일 최댓값	7일 내 발생한 전송 경로 오류 최대 피크
-시스템성 실패	s184_3d_sum	$\sum_{i=0}^{2} \Delta E_{t-i}$	전송 경로 오류 3일 총합	3일 내 발생한 전송 경로 오류 급성 누적 데미지
-시스템성 실패	s184_3d_max	$\max(\Delta E_{t-2}, \dots, \Delta E_t)$	전송 경로 오류 3일 최댓값	3일 내 발생한 패리티 오류(End-to-End)의 급성 피크
-펌웨어 실패	firmware_struggle_index	$(\Delta s197_t + \Delta s198_t) \times \Delta Timeout\_Total_t$	펌웨어 오류 복구 지연(발악) 지수	변화량 기준 단순 곱셈
-Sector 열화	s197_recovery_flag	$\mathbb{I}(s197_t < s197_{t-1})$	불안정 섹터 회복 이벤트 플래그	전일 대비 누적 수치 감소 여부
-Sector 열화	s198_error_rate	$\frac{s198_t}{s9_t + 1}$	시간당 복구 불가 섹터 발생률	Inverse 뒤집어 Rate로 통일
-Sector 열화	s187_error_rate	$\frac{s187_t}{s9_t + 1}$	시간당 복구 불가 오류 발생률	Inverse 뒤집어 Rate로 통일
-Sector 열화	multi_error_coincidence	$\sum_{k} \mathbb{I}(\Delta s_{k,t} > 0)$	다중 오류 동시 발생 지표	값이 증가한 핵심 에러 지표 개수 카운트
-Sector 열화	error_saturation_score	$\mathbb{I}(s187_t \ge 65535) + \mathbb{I}(s189_t \ge 65535) + \mathbb{I}(Seek\_Error_t \ge 65535)$	핵심 오류 지표 포화도 점수	임계치 도달 여부 확인
-Sector 열화	cumulative_error_score	$5\lvert\Delta s5_t\rvert + 4\lvert\Delta s187_t\rvert + 3\lvert\Delta Timeout\_Total_t\rvert + 2\lvert\Delta s197_t\rvert + 1\lvert\Delta s198_t\rvert$	핵심 5대 변수 종합 위험 점수	에러 복구(음수)도 이벤트로 간주하여 절댓값 가중 합산
-Sector 열화	error_density_14d	$\frac{\sum_{i=0}^{13} E_{t-i}}{\sum_{i=0}^{13} \max(0, \Delta s9_{t-i}) + 1}$	14일간 시간 대비 에러 밀도	[논리 위험 수정] 분모를 14일간의 실제 누적 구동 시간($\sum \Delta s9$)으로 변경
-Sector 열화	s198_28d_sum	$\sum_{i=0}^{27} \Delta E_{t-i}$	복구 불가 섹터 28일 총합	28일 내 물리적으로 파괴된 섹터 장기 누적량
-Sector 열화	s198_28d_max	$\max(\Delta E_{t-27}, \dots, \Delta E_t)$	복구 불가 섹터 28일 최댓값	28일 내 발생한 오프라인 복구 불가 섹터의 최대 피크
-Sector 열화	s198_14d_sum	$\sum_{i=0}^{13} \Delta E_{t-i}$	복구 불가 섹터 14일 총합	14일 내 물리적으로 파괴된 섹터의 총 누적량
-Sector 열화	s198_14d_max	$\max(\Delta E_{t-13}, \dots, \Delta E_t)$	복구 불가 섹터 14일 최댓값	14일 내 발생한 오프라인 복구 불가 섹터의 최대 피크
-Sector 열화	s197_28d_sum	$\sum_{i=0}^{27} \Delta E_{t-i}$	불안정 섹터 28일 총합	28일 내 대기 섹터로 전환된 장기 누적 횟수
-Sector 열화	s197_28d_max	$\max(\Delta E_{t-27}, \dots, \Delta E_t)$	불안정 섹터 28일 최댓값	28일 내 대기 섹터 증가량의 최대 피크
-Sector 열화	s197_14d_sum	$\sum_{i=0}^{13} \Delta E_{t-i}$	불안정 섹터 14일 총합	14일 내 대기 섹터로 전환된 총 누적 횟수
-Sector 열화	s197_14d_max	$\max(\Delta E_{t-13}, \dots, \Delta E_t)$	불안정 섹터 14일 최댓값	14일 내 대기 섹터(Pending) 증가량의 최대 피크
-Sector 열화	s187_28d_sum	$\sum_{i=0}^{27} \Delta E_{t-i}$	복구 불가 오류 28일 총합	28일 내 발생한 치명적 복구 불가 장기 누적량
-Sector 열화	s187_28d_max	$\max(\Delta E_{t-27}, \dots, \Delta E_t)$	복구 불가 오류 28일 최댓값	28일 내 발생한 복구 불가 에러 최대 피크
-Reallocated / Pending	reallocated_pending_ratio	$\frac{s197_t + 1}{s5_t + 1}$	불량 섹터 대비 불안정 섹터 비율	누적 원본값 기준 비율 연산
-Reallocated / Pending	pending_to_offline_ratio	$\frac{s197_t + 1}{s198_t + 1}$	대기 섹터의 복구 불가 전이 심각도	누적 원본값 기준 비율 연산
-지속 악화	s5_daily_failure_speed	$\max(0, \Delta s5_t)$	일일 불량 섹터 노후화 속도	역방향 수식 버리고 당일 순수 발생량으로 치환
-지속 악화	late_stage_degradation	$\max(0, \Delta s5_t) \times s9_t$	노후화 말기 불량 섹터 발생 위험도	불량 섹터 감소분은 0 처리 후 누적 시간 곱셈
-지속 악화	error_growth_ratio	$\frac{E_t + 1}{E_{t-1} + 1}$	오류 가속화 비율	전일 대비 당일 에러 발생 비율
-지속 악화	s197_7d_straight_rise	$\mathbb{I}\left( \sum_{i=0}^{6} \mathbb{I}(\Delta s197_{t-i} > 0) \ge 5 \right)$	7일 중 5일 이상 연속 상승 여부	이중 지시 함수를 통한 논리 연산 (유지)
-복구 실패	recovery_failure_flag	$\mathbb{I}(\Delta s197_t < 0) \cdot \mathbb{I}(\Delta s5_t > 0)$	대기 섹터의 불가 섹터 전이 현상	[트리 최적화] Binary Interaction 유지
-최근 발생 시점	timeout_total_days_since_last	$\begin{cases} t - \max\{\tau \mid \max(0, \Delta Timeout\_Total_\tau) > 0\}, & \text{if } \exists \tau \\ -1, & \text{otherwise} \end{cases}$	마지막 Timeout 증가 이후 경과일	[표준 cases] 순수 증가 이벤트 기준
-최초 발생 시점	s5_days_since_first	$\begin{cases} t - \min\{\tau \mid s5_\tau > 0\}, & \text{if } \exists \tau \\ -1, & \text{otherwise} \end{cases}$	smart_5 최초 발생 후 경과일	[표준 cases] 미발생 시 -1 반환
-최초 발생 시점	s187_days_since_first	$\begin{cases} t - \min\{\tau \mid s187_\tau > 0\}, & \text{if } \exists \tau \\ -1, & \text{otherwise} \end{cases}$	smart_187 최초 발생 후 경과일	[표준 cases] 미발생 시 -1 반환
-과거 누적 발생	s5_ever_flag	$\mathbb{I}(\max_{0 \le i \le t}(s5_i) > 0)$	불량 섹터 누적 발생 플래그	과거부터 현재까지 발생 이력 확인
-과거 누적 발생	s187_ever_flag	$\mathbb{I}(\max_{0 \le i \le t}(s187_i) > 0)$	복구 불가 오류 횟수 누적 발생 플래그	과거부터 현재까지 발생 이력 확인
-직접 손상 발생	timeout_5s_damaged	$\mathbb{I}(Timeout\_5s_t > 0)$	5초 이상 지연 손상 여부	누적 원본값 기준 발생 확인
-직접 손상 발생	seek_damaged	$\mathbb{I}(Seek\_Error\_Count_t > 0)$	탐색 오류 손상 여부	누적 원본값 기준 발생 확인
-직접 손상 발생	s5_damaged	$\mathbb{I}(s5_t > 0)$	불량 섹터 손상 여부	누적 원본값 기준 발생 확인
-직접 손상 발생	s198_damaged	$\mathbb{I}(s198_t > 0)$	복구 불가 섹터 손상 여부	누적 원본값 기준 발생 확인
-직접 손상 발생	s197_damaged	$\mathbb{I}(s197_t > 0)$	불안정 섹터 손상 여부	누적 원본값 기준 발생 확인
-직접 손상 발생	s187_damaged	$\mathbb{I}(s187_t > 0)$	복구 불가 오류 손상 여부	누적 원본값 기준 발생 확인
-직접 손상 발생	s5_28d_sum	$\sum_{i=0}^{27} \Delta E_{t-i}$	불량 섹터 28일 총합	28일 내 발생한 불량 섹터 대체 횟수 장기 누적 데미지
-직접 손상 발생	s5_28d_max	$\max(\Delta E_{t-27}, \dots, \Delta E_t)$	불량 섹터 28일 최댓값	28일 내 발생한 불량 섹터 대체 횟수의 최대 피크
-직접 손상 발생	s5_14d_sum	$\sum_{i=0}^{13} \Delta E_{t-i}$	불량 섹터 14일 총합	14일 내 발생한 불량 섹터 대체 횟수 누적 데미지
-직접 손상 발생	s5_14d_max	$\max(\Delta E_{t-13}, \dots, \Delta E_t)$	불량 섹터 14일 최댓값	14일 내 발생한 불량 섹터 대체 횟수의 최대 피크
