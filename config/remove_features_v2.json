@@ -138,7 +138,6 @@
     ],
     "직접 손상 발생": [
         "smart_5_raw",
-        "s5_daily_failure_speed",
-        "s197_damaged"
+        "s5_daily_failure_speed"
     ]
 }
