@@ -321,6 +321,163 @@ def plot_shap_importance(
 
 
 # ════════════════════════════════════════════════════════════
+#  5b. SHAP INTERACTION MATRIX
+# ════════════════════════════════════════════════════════════
+
+def plot_shap_interaction(
+    models: list[LGBMClassifier],
+    X_train: pd.DataFrame,
+    y_train: Optional[pd.Series] = None,
+    interaction_cols: Optional[list[str]] = None,
+    top_n: int = 15,
+    sample_n: int = 200,
+):
+    """
+    SHAP Interaction Values 절댓값 평균 매트릭스 시각화.
+
+    Parameters
+    ----------
+    interaction_cols : 직접 지정할 feature 리스트.
+                       None 이면 mean|SHAP| 주대각 상위 top_n 자동 선별.
+    y_train         : 레이블 시리즈. 제공 시 실패/정상 비율 유지 층화 샘플링 수행.
+    top_n           : interaction_cols 미지정 시 상위 feature 수.
+    sample_n        : 상호작용 계산에 사용할 샘플 수.
+
+    주대각 = 직접 효과, 비주대각 = 상호작용 강도
+    """
+    # ── 층화 샘플링 ───────────────────────────────────────────
+    n = min(sample_n, len(X_train))
+    if y_train is not None and len(y_train.unique()) > 1:
+        from sklearn.model_selection import StratifiedShuffleSplit
+        sss = StratifiedShuffleSplit(n_splits=1, train_size=n, random_state=42)
+        idx, _ = next(sss.split(X_train, y_train))
+        X_s = X_train.iloc[idx].copy()
+        print(f"  [Stratified] sample={n}  "
+              f"pos={int(y_train.iloc[idx].sum())} ({y_train.iloc[idx].mean()*100:.1f}%)")
+    else:
+        X_s = X_train.sample(n, random_state=42).copy()
+        print(f"  [Random] sample={n}")
+
+    num_cols = X_s.select_dtypes(include=[np.number]).columns
+    X_s[num_cols] = X_s[num_cols].astype("float32")
+
+    # ── 상호작용 값 수집 (fold 모델 평균) ──────────────────────
+    sv_inter_list = []
+    for m in models:
+        explainer = shap.TreeExplainer(m)
+        sv_inter  = explainer.shap_interaction_values(X_s)   # (n, p, p)
+        if isinstance(sv_inter, list):
+            sv_inter = sv_inter[1]
+        sv_inter_list.append(sv_inter)
+
+    mean_inter = np.mean(sv_inter_list, axis=0)   # (n, p, p)
+    abs_mean   = np.abs(mean_inter).mean(axis=0)  # (p, p)
+
+    # ── feature 선별 ───────────────────────────────────────────
+    all_cols = list(X_s.columns)
+
+    if interaction_cols is not None:
+        # 직접 지정: 데이터에 없는 컬럼 경고 후 제외
+        missing_ic = [c for c in interaction_cols if c not in all_cols]
+        if missing_ic:
+            print(f"  [WARN] interaction_cols 중 데이터 없는 컬럼 무시: {missing_ic}")
+        sel_cols = [c for c in interaction_cols if c in all_cols]
+        if not sel_cols:
+            raise ValueError("interaction_cols 에 유효한 컬럼이 없습니다.")
+        sel_idx      = [all_cols.index(c) for c in sel_cols]
+        title_suffix = f"user-defined ({len(sel_cols)} cols)"
+    else:
+        # 자동: 주대각(mean |SHAP|) 상위 top_n
+        diag_vals = np.diag(abs_mean)
+        sel_idx   = np.argsort(diag_vals)[::-1][:top_n].tolist()
+        sel_cols  = [all_cols[i] for i in sel_idx]
+        title_suffix = f"Top {top_n} by mean|SHAP|"
+
+    feat_names = np.array(sel_cols)
+    mat        = abs_mean[np.ix_(sel_idx, sel_idx)]
+    n_feat     = len(feat_names)
+
+    # ── 플롯 ──────────────────────────────────────────────────
+    fig, ax = plt.subplots(figsize=(max(8, n_feat * 0.7), max(6, n_feat * 0.7)))
+    im = ax.imshow(mat, cmap="YlOrRd", aspect="auto")
+    fig.colorbar(im, ax=ax, label="mean |SHAP interaction|")
+
+    ax.set_xticks(range(n_feat))
+    ax.set_yticks(range(n_feat))
+    ax.set_xticklabels(feat_names, rotation=45, ha="right", fontsize=8)
+    ax.set_yticklabels(feat_names, fontsize=8)
+    ax.set_title(
+        f"SHAP Interaction Matrix ({title_suffix}, sample={n})",
+        fontsize=12, fontweight="bold"
+    )
+
+    # 셀 값 텍스트
+    vmax = mat.max()
+    for i in range(n_feat):
+        for j in range(n_feat):
+            ax.text(j, i, f"{mat[i, j]:.3f}",
+                    ha="center", va="center", fontsize=max(5, 8 - n_feat // 4),
+                    color="white" if vmax > 0 and mat[i, j] > vmax * 0.6 else "black")
+
+    plt.tight_layout()
+    plt.show()
+
+    df_inter = pd.DataFrame(mat, index=feat_names, columns=feat_names)
+    return df_inter
+
+
+# ════════════════════════════════════════════════════════════
+#  5c. CONFUSION MATRIX
+# ════════════════════════════════════════════════════════════
+
+def plot_confusion(
+    y_true: pd.Series,
+    y_prob: np.ndarray,
+    threshold: float = 0.5,
+    title: str = "Confusion Matrix (Test)",
+):
+    """
+    이진 분류 혼동행렬 시각화.
+    수치(count) + 비율(%) 동시 표시.
+    """
+    from sklearn.metrics import confusion_matrix, classification_report
+
+    y_pred = (y_prob >= threshold).astype(int)
+    cm     = confusion_matrix(y_true, y_pred)
+
+    fig, ax = plt.subplots(figsize=(5, 4))
+    im = ax.imshow(cm, cmap="Blues")
+    fig.colorbar(im, ax=ax)
+
+    labels = ["Normal (0)", "Failure (1)"]
+    ax.set_xticks([0, 1]); ax.set_xticklabels(labels)
+    ax.set_yticks([0, 1]); ax.set_yticklabels(labels)
+    ax.set_xlabel("Predicted"); ax.set_ylabel("Actual")
+    ax.set_title(f"{title}  (thr={threshold})", fontsize=12, fontweight="bold")
+
+    total = cm.sum()
+    for i in range(2):
+        for j in range(2):
+            val = cm[i, j]
+            ax.text(j, i, f"{val}\n({val/total*100:.1f}%)",
+                    ha="center", va="center", fontsize=11,
+                    color="white" if cm[i, j] > cm.max() * 0.5 else "black")
+
+    plt.tight_layout()
+    plt.show()
+
+    print("\n[Classification Report]")
+    print(classification_report(y_true, y_pred, target_names=["Normal", "Failure"]))
+
+    tn, fp, fn, tp = cm.ravel()
+    print(f"  Precision (Failure) : {tp/(tp+fp):.4f}")
+    print(f"  Recall    (Failure) : {tp/(tp+fn):.4f}")
+    print(f"  Specificity         : {tn/(tn+fp):.4f}")
+
+    return cm
+
+
+# ════════════════════════════════════════════════════════════
 #  6. AUDIT REPORT  (설정 투명성)
 # ════════════════════════════════════════════════════════════
 
@@ -395,20 +552,38 @@ def print_results(result: dict, cfg):
 #  8. MAIN PIPELINE  (노트북에서 한 셀로 호출)
 # ════════════════════════════════════════════════════════════
 
-def run_pipeline(cfg, *, show_gain=True, show_shap=True) -> dict:
+def run_pipeline(
+    cfg,
+    *,
+    show_gain: bool = True,
+    show_shap: bool = True,
+    show_interaction: bool = False,
+    show_confusion: bool = True,
+    confusion_threshold: float = 0.5,
+    interaction_cols: Optional[list[str]] = None,
+    interaction_top_n: int = 15,
+    interaction_sample_n: int = 200,
+) -> dict:
     """
     전체 파이프라인 실행.
 
     Parameters
     ----------
-    cfg       : config 모듈 (import 해서 넘기면 됨)
-    show_gain : Gain 중요도 플롯 출력 여부
-    show_shap : SHAP 중요도 플롯 출력 여부
+    cfg                  : config 모듈
+    show_gain            : Gain 중요도 플롯
+    show_shap            : SHAP beeswarm + bar 플롯
+    show_interaction     : SHAP 상호작용 매트릭스 (기본 Off)
+    show_confusion       : test 혼동행렬
+    confusion_threshold  : 혼동행렬 분류 임계값
+    interaction_cols     : 상호작용 매트릭스에 사용할 feature 리스트.
+                           None 이면 mean|SHAP| 상위 interaction_top_n 자동 선별.
+    interaction_top_n    : interaction_cols=None 일 때 상위 feature 수
+    interaction_sample_n : 상호작용 계산용 층화 샘플 수
 
     Returns
     -------
     dict with keys:
-        features, audit, cv_result, df_gain, df_shap
+        features, audit, cv_result, df_gain, df_shap, df_interaction, cm
     """
     # ── 0. config validation ──────────────────────────────────
     issues = validate_config(cfg)
@@ -454,24 +629,46 @@ def run_pipeline(cfg, *, show_gain=True, show_shap=True) -> dict:
     print_results(cv_result, cfg)
 
     # ── 4. 중요도 ─────────────────────────────────────────────
-    df_gain = df_shap = None
+    df_gain = df_shap = df_interaction = cm = None
 
     if show_gain:
-        print("\n📊  Gain 중요도 계산 중...")
+        print("\n\U0001f4ca  Gain 중요도 계산 중...")
         df_gain = plot_gain_importance(cv_result["models"], features, top_n=cfg.GAIN_TOP_N)
 
     if show_shap:
-        print(f"\n🔍  SHAP 계산 중 (sample={cfg.SHAP_SAMPLE_N})...")
+        print(f"\n\U0001f50d  SHAP 계산 중 (sample={cfg.SHAP_SAMPLE_N})...")
         df_shap = plot_shap_importance(
             cv_result["models"], X_train,
             top_n=cfg.SHAP_TOP_N,
             sample_n=cfg.SHAP_SAMPLE_N,
         )
 
+    if show_interaction:
+        label_str = f"cols={interaction_cols}" if interaction_cols else f"top_n={interaction_top_n}"
+        print(f"\n\U0001f9e9  SHAP 상호작용 매트릭스 계산 중 ({label_str}, sample={interaction_sample_n})...")
+        df_interaction = plot_shap_interaction(
+            cv_result["models"], X_train,
+            y_train=y_train,
+            interaction_cols=interaction_cols,
+            top_n=interaction_top_n,
+            sample_n=interaction_sample_n,
+        )
+
+    if show_confusion:
+        print("\n\U0001f4ca  혼동행렬 (테스트 세트) 출력 중...")
+        cm = plot_confusion(
+            y_test,
+            cv_result["test_pred"],
+            threshold=confusion_threshold,
+            title="Confusion Matrix (Test set)",
+        )
+
     return {
-        "features":   features,
-        "audit":      audit,
-        "cv_result":  cv_result,
-        "df_gain":    df_gain,
-        "df_shap":    df_shap,
+        "features":      features,
+        "audit":         audit,
+        "cv_result":     cv_result,
+        "df_gain":       df_gain,
+        "df_shap":       df_shap,
+        "df_interaction": df_interaction,
+        "cm":            cm,
     }
