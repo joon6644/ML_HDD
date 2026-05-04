@@ -1,24 +1,22 @@
 # =============================================================
-#  ablation_test.py  ─  INCLUDE_COLS 변수 Ablation 테스트
+#  addition_test.py  ─  INCLUDE_COLS 외부 변수 Forward Addition 테스트
 #
 #  동작 방식
 #  ---------
 #  1. rfe_config.py 의 INCLUDE_COLS 전체로 baseline 학습 → PR-AUC 기록
-#  2. INCLUDE_COLS 순서대로 변수 하나씩 제거하며 재학습 → PR-AUC 기록
-#  3. 총 N+1 번 실험 (baseline 1회 + 변수 제거 N회)
+#  2. 데이터에 존재하지만 INCLUDE_COLS에 없는 변수를 하나씩 추가하며 재학습 → PR-AUC 기록
+#  3. 총 M+1 번 실험 (baseline 1회 + 변수 추가 M회)
 #
 #  출력
 #  ----
-#  - 콘솔: 실험 진행 현황 실시간 출력
-#  - CSV / Excel: scripts/ablation_test_results.csv & .xlsx
+#  - 콘솔: 실험 진행 현황 실시간 출력 (ablation_test.py 동일 포맷)
 #
 #  실행
 #  ----
-#  cd c:\Workspace\COIN\ML_HDD
-#  python scripts\ablation_test.py
+#  python scripts\addition_test.py
 # =============================================================
 
-import sys, os, warnings, logging, contextlib
+import sys, os, warnings, logging
 os.environ["PYTHONWARNINGS"] = "ignore"
 warnings.filterwarnings("ignore")
 logging.getLogger("lightgbm").setLevel(logging.ERROR)
@@ -42,11 +40,6 @@ from config.rfe_config import (
     CV_SHUFFLE,
     CV_SEED,
 )
-
-# ── 출력 경로 ────────────────────────────────────────────────
-BASE_DIR    = os.path.join(os.path.dirname(__file__), "..")
-OUTPUT_CSV  = os.path.join(BASE_DIR, "scripts", "ablation_test_results.csv")
-OUTPUT_XLSX = os.path.join(BASE_DIR, "scripts", "ablation_test_results.xlsx")
 
 # ── 파라미터 복사 (원본 건드리지 않음) ──────────────────────
 _PARAMS = {**LGBM_PARAMS}
@@ -101,45 +94,50 @@ if __name__ == "__main__":
 
     # ── INCLUDE_COLS 검증 ─────────────────────────────────────
     available_cols = set(train_df.columns) - {TARGET_COL}
-    valid_cols = [c for c in INCLUDE_COLS if c in available_cols]
-    missing    = [c for c in INCLUDE_COLS if c not in available_cols]
+    valid_base = [c for c in INCLUDE_COLS if c in available_cols]
 
+    # INCLUDE_COLS에 없지만 데이터에 존재하는 변수 → 추가 대상
+    candidate_cols = [c for c in sorted(available_cols) if c not in set(valid_base)]
+
+    missing = [c for c in INCLUDE_COLS if c not in available_cols]
     if missing:
         print(f"\n[WARN] 데이터에 없는 컬럼 {len(missing)}개 제외:")
         for c in missing:
             print(f"   - {c}")
 
-    if len(valid_cols) == 0:
+    if len(valid_base) == 0:
         raise RuntimeError("INCLUDE_COLS 에서 유효한 컬럼이 없습니다. config를 확인하세요.")
+
+    if len(candidate_cols) == 0:
+        raise RuntimeError("추가할 수 있는 변수가 없습니다. 모든 변수가 이미 INCLUDE_COLS에 있습니다.")
 
     y_train = train_df[TARGET_COL]
     y_test  = test_df[TARGET_COL]
 
-    total_exp  = len(valid_cols) + 1   # baseline + 변수 1개씩 N회 제거
-    results    = []
-    prev_exp   = "none"  # base_exp 추적
+    total_exp = len(candidate_cols) + 1   # baseline + 변수 1개씩 M회 추가
+    results   = []
+    prev_exp  = "none"
 
-    print(f"\n[INFO] 유효 변수 수: {len(valid_cols)}개")
-    print(f"[INFO] 총 실험 수  : {total_exp}회  (baseline + 변수 제거 {len(valid_cols)}회)")
+    print(f"\n[INFO] 현재 포함된 변수(baseline) 수: {len(valid_base)}개")
+    print(f"[INFO] 추가 테스트 대상 변수 수     : {len(candidate_cols)}개")
+    print(f"[INFO] 총 실험 수                  : {total_exp}회  (baseline + 변수 추가 {len(candidate_cols)}회)")
     print(f"       pos rate: train={y_train.mean():.4f}, test={y_test.mean():.4f}")
     print("=" * 80)
     print(f"{'exp_id':<10} {'base_exp':<10} {'change':<30} {'CV PR-AUC':>10} {'CV std':>8} {'test PR-AUC':>12}")
     print("-" * 80)
 
     # ── 실험 루프 ─────────────────────────────────────────────
-    # exp 0 : baseline (전체 INCLUDE_COLS)
-    # exp i : valid_cols[i-1] 를 제거한 feature set
+    # exp 0 : baseline (INCLUDE_COLS 그대로)
+    # exp i : valid_base + candidate_cols[i-1] 추가한 feature set
     for exp_idx in range(total_exp):
         if exp_idx == 0:
-            # baseline
-            current_cols = valid_cols[:]
-            removed_col  = None
-            label        = "baseline"
+            current_cols = valid_base[:]
+            added_col    = None
+            change_str   = "baseline"
         else:
-            # i번째 변수를 제거한 feature set
-            removed_col  = valid_cols[exp_idx - 1]
-            current_cols = [c for c in valid_cols if c != removed_col]
-            label        = f"remove: {removed_col}"
+            added_col    = candidate_cols[exp_idx - 1]
+            current_cols = valid_base + [added_col]
+            change_str   = added_col
 
         exp_id = f"exp_{exp_idx + 1:03d}"
 
@@ -147,8 +145,6 @@ if __name__ == "__main__":
         X_te = test_df[current_cols]
 
         res = evaluate(X_tr, y_train, X_te, y_test)
-
-        change_str = "baseline" if removed_col is None else removed_col
 
         row = {
             "exp_id":       exp_id,
