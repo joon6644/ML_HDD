@@ -35,12 +35,12 @@ def suppress_c_stderr():
         os.close(devnull_fd)
 
 # ── config에서 파라미터 가져오기 ─────────────────────────────
-from config.rfe_config import LGBM_PARAMS
+from config.fs_config import LGBM_PARAMS
 
-TRAIN_PATH  = r"data\rfe_sample_data\rfe_train.parquet"
-TEST_PATH   = r"data\rfe_sample_data\rfe_test.parquet"
-OUTPUT_CSV  = r"scripts\shap_backward_rfe_results.csv"
-OUTPUT_XLSX = r"scripts\shap_backward_rfe_results.xlsx"
+TRAIN_PATH  = r"data\fs_data\fs_train.parquet"
+TEST_PATH   = r"data\fs_data\fs_validation.parquet"
+OUTPUT_CSV  = r"scripts\shap_backward_fs_results.csv"
+OUTPUT_XLSX = r"scripts\shap_backward_fs_results.xlsx"
 
 N_FOLDS     = 3
 SHAP_SAMPLE = 200

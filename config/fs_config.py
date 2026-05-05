@@ -1,5 +1,5 @@
 # ============================================================
-#  rfe_config.py  ─  RFE 실험 설정 (여기만 수정)
+#  fs_config.py  ─  RFE 실험 설정 (여기만 수정)
 # ============================================================
 #
 #  MODE 설명
@@ -28,14 +28,14 @@ def check_gpu() -> bool:
 
 # ─── 경로 ────────────────────────────────────────────────────
 BASE_DIR        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TRAIN_PATH      = os.path.join(BASE_DIR, "data", "rfe_sample_data", "rfe_train.parquet")
-TEST_PATH       = os.path.join(BASE_DIR, "data", "rfe_sample_data", "rfe_test.parquet")
+TRAIN_PATH      = os.path.join(BASE_DIR, "data", "fs_data", "fs_sample_train.parquet")
+TEST_PATH       = os.path.join(BASE_DIR, "data", "fs_data", "fs_sample_validation.parquet")
 FEATURE_GROUP_PATH = r"..\config\feature_groups.json"
 
 
 # ─── 실험 모드 ───────────────────────────────────────────────
 #  "add"  or  "drop"
-MODE = "add"
+MODE = "drop"
 
 # ─── [add 모드] 포함할 그룹 / 개별 컬럼 ──────────────────────
 #  MODE == "add" 일 때만 유효
@@ -45,34 +45,54 @@ INCLUDE_GROUPS: list[str] = [
 ]
 
 INCLUDE_COLS: list[str] = [
-"s187_days_since_first",
-"error_density_14d",
-"smart_187_raw",
-"smart_197_raw",
-"s187_28d_sum",
-"total_seeks_28d_max",
-"total_seeks_28d_asfd",
-"cumulative_error_score",
-"s5_days_since_first",
-"age_weighted_workload",
-"s242_14d_mean",
-"smart_241_raw",
-"smart_242_raw",
-"smart_9_raw",
-"s241_14d_mean",
-"s241_diff",
-"s241_7d_max",
-"total_seeks_14d_mean",
-"s190_28d_mean",
-"s190_28d_ewma",
-"s190_7d_ewma",
-"total_reads_7d_max",
-"total_reads_14d_max",
-"s194_14d_std",
-"s194_28d_mean",
-"smart_184_raw",
-"total_reads_28d_std",
-"total_reads_7d_dai",
+# "s187_days_since_first",
+# "error_density_14d",
+# "smart_187_raw",
+# "smart_197_raw",
+# "s187_28d_sum",
+# "total_seeks_28d_max",
+# "total_seeks_28d_asfd",
+# "cumulative_error_score",
+# "s5_days_since_first",
+# "age_weighted_workload",
+# "s242_14d_mean",
+# "smart_241_raw",
+# "smart_242_raw",
+# "smart_9_raw",
+# "s241_14d_mean",
+# "s241_diff",
+# "s241_7d_max",
+# "total_seeks_14d_mean",
+# "s190_28d_mean",
+# "s190_28d_ewma",
+# "s190_7d_ewma",
+# "total_reads_7d_max",
+# "total_reads_14d_max",
+# "s194_14d_std",
+# "s194_28d_mean",
+# "smart_184_raw",
+# "total_reads_28d_std",
+# "total_reads_7d_dai",
+
+    "smart_5_raw", 
+"smart_184_raw", 
+"smart_187_raw", 
+"smart_197_raw", 
+"smart_198_raw", 
+"timeout_5s", 
+"timeout_total", 
+"seek_error_count", 
+"smart_9_raw", 
+"smart_183_raw", 
+"smart_189_raw", 
+"smart_190_raw", 
+"smart_191_raw", 
+"smart_194_raw", 
+"smart_199_raw", 
+"smart_241_raw", 
+"smart_242_raw", 
+"total_reads", 
+"total_seeks",
 ]
 
 # ─── [drop 모드] 제거할 그룹 / 개별 컬럼 ─────────────────────
@@ -115,10 +135,16 @@ EXCLUDE_COLS: list[str] = [
 
 
 
+
+
+
 ]
 
 # ─── 타깃 컬럼 ───────────────────────────────────────────────
 TARGET_COL = "failure"
+
+# ─── SEED ───────────────────────────────────────────────────
+SEED = 42
 
 # ─── LightGBM 하이퍼파라미터 ──────────────
 _HAS_GPU = check_gpu()
@@ -132,18 +158,18 @@ LGBM_PARAMS = {
     "n_estimators":           200,
     "learning_rate":          0.07,
     "device":                 "gpu" if _HAS_GPU else "cpu",
-    "random_state":           42,
-    "bagging_seed":           42,
-    "feature_fraction_seed":  42,
-    "data_random_seed":       42,
+    "random_state":           SEED,
+    "bagging_seed":           SEED,
+    "feature_fraction_seed":  SEED,
+    "data_random_seed":       SEED,
     "n_jobs":                 -1,
     "verbose":                -1,
 }
 
 # ─── Cross-Validation ────────────────────────────────────────
-CV_N_SPLITS  = 3
+CV_N_SPLITS  = 5
 CV_SHUFFLE   = True
-CV_SEED      = 42
+CV_SEED      = SEED
 
 # ─── SHAP 샘플 수 (속도 vs 정밀도) ──────────────────────────
 SHAP_SAMPLE_N = 200           # None 이면 전체 사용 (느림)

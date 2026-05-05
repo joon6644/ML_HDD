@@ -125,10 +125,21 @@
 
 train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 언더샘플링함 (클래스 불균형은 다름).
 
-- rfe_sample_train.parquet
+- fs_sample_train.parquet
     - [https://drive.google.com/file/d/11fU3EnwZPIIWyDp-AYiPkxP8g59VIHOm/view?usp=sharing](https://drive.google.com/file/d/1-AReRkLyZIko11HDexNLfqakuXuQaaJ1/view?usp=sharing)
-- rfe_sample_test.parquet
+- fs_sample_validation.parquet
     - [https://drive.google.com/file/d/1d5rcAzEOiiDwaq3v0w9O-2D2NQji58e3/view?usp=sharing](https://drive.google.com/file/d/1LRo5pJnb5svoN8fhZyhawon2kh-05FaE/view?usp=sharing)
+
+---
+
+### 1차 필터링 후 RFE 전용 데이터셋
+
+group 내부 중복 변수 제거한 결과물
+
+- fs_train
+    - https://drive.google.com/file/d/1LjgwwRVbfmJ8gCxUieBly0QurWUCTT40/view?usp=sharing
+- fs_validation
+    - https://drive.google.com/file/d/1q5bYxni4-H0zU9NeHFCv0_dgIviZxG_p/view?usp=sharing
 </aside>
 
 ---
@@ -288,10 +299,8 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 �
 
 <aside>
 
-여전히 결측치가 남아있다면 파생 변수 생성 단계에서 자연스럽게 처리됨 
+여전히 결측치가 남아있다면 분기 조건으로 사용하도록 놔둠
 
-- Forward fill 적용 후에 결측치가 남아있다면 무조건 시작 부분임
-- 결측치가 포함된 범위에서 파생변수 생성 시 NaN을 반환할 것이며, 이후 Dropna 적용하여 일괄삭제
 </aside>
 
 - 데이터 컬럼
@@ -461,44 +470,44 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 �
     
     [누수 체크]
     한 개체가 속한 split 최대 개수: 1 (정상은 1)
-    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_random_group_stratified\test_raw.parquet
-    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_random_group_stratified\train_raw.parquet
-    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_random_group_stratified\val_calib_raw.parquet
-    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_random_group_stratified\val_tune_raw.parquet
+    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_group_stratified\test_raw.parquet
+    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_group_stratified\train_raw.parquet
+    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_group_stratified\val_calib_raw.parquet
+    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_group_stratified\val_tune_raw.parquet
     ```
     
 
 ---
 
-## 4. 피처 엔지니어링
+## 4. 특성 생성
 
-자세한 내용은 [파생변수](https://www.notion.so/34b14366e96b8051a73ec7aa7cbad935?pvs=21) 참고
+자세한 내용은 [파생변수 생성](https://www.notion.so/34b14366e96b8051a73ec7aa7cbad935?pvs=21) 참고
 
 - 모델의 고장 예측력을 극대화하기 위해, 원본 데이터를 기반으로 다양한 관점의 파생 변수를 생성
-- 파생 변수 생성은 일률적인 통계 접근법(SSP)과 도메인 지식 기반 접근법(AFM) 두 가지 트랙으로 나누어 진행
+- 파생 변수 생성은 일률적인 통계적 특징 추출과 도메인 기반 특징 공학 두 가지 트랙으로 나누어 진행
 
 <aside>
 
 ### 파생 변수 생성 전략
 
-- **SSP (Standard Statistical Profile): 일률적 통계 특징 추출**
+- 통계적 특징 추출
     - **설명:** 원본 데이터의 시계열적 변동성을 파악하기 위해 모든 주요 원본 및 차분 변수(오늘-어제)에 일괄 적용하는 통계적 기법입니다.
     - **윈도우 적용:** 3일, 7일, 14일, 28일 주기의 슬라이딩 윈도우(Sliding Window)를 적용합니다.
     - **추출 통계량:** 변수의 성격에 따라 불필요한 연산을 제외하고 `max`, `sum`, `평균`, `표준편차`, `z-score`, `asfd`, `dai`, `cid`, `accel`, `ewma` 등을 선별적으로 계산합니다.
-- **AFM (Advanced Failure Mechanism): 도메인 기반 특징 공학**
+- 도메인 기반 특징 공학
     - **설명:** 하드디스크의 물리적 동작 원리와 고장 메커니즘에 대한 도메인 지식을 바탕으로 직접 고안한 복합 파생 변수입니다.
     - **주요 지표:** 과거 물리적 손상 발생 이력(0/1 플래그), 시간당 작업량, 에러 발생 밀도 등 모델이 직접 학습하기 어려운 복합적인 패턴을 수치화합니다.
 
-### 변수 명명 규칙 (Naming Convention)
+### 변수 명명 규칙
 
 일관된 데이터 파이프라인 관리를 위해 아래의 명명 규칙을 엄격하게 적용합니다. (전체 소문자 및 언더바 연결)
 
-- **SSP 변수:** `[대상]_[기간]_[연산자]` 구조 (예: `s5_7d_mean`)
-- **AFM 변수:** 여러 지표가 혼합되거나 특정 윈도우가 없는 경우, 변수의 직관적 물리적/논리적 의미를 담아 명명합니다. (예: `s187_14d_burst_index`)
+- 통계적 특징 추출 **변수:** `[대상]_[기간]_[연산자]` 구조 (예: `s5_7d_mean`)
+- 도메인 기반 특징 공학 **변수:** 여러 지표가 혼합되거나 특정 윈도우가 없는 경우, 변수의 직관적 물리적/논리적 의미를 담아 명명합니다. (예: `s187_14d_burst_index`)
 
 ### 데이터 결측 및 수치 예외 처리 규칙
 
-데이터 변환 과정에서 발생할 수 있는 수치적 폭발(Gradient Explosion)과 정보 손실을 막기 위해 아래의 원칙을 적용했습니다.
+데이터 변환 과정에서 발생할 수 있는 수치적 폭발과 정보 손실을 막기 위해 아래의 원칙을 적용했습니다.
 
 **① ZeroDivisionError 방지 규칙**
 
@@ -507,49 +516,49 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 �
 - **이산형 데이터 (빈도, 횟수, 개수 등): `+ 1` 처리 (라플라스 스무딩, Laplace Smoothing)**
     - *사유:* 미관측 범주에 대한 Zero-Probability 문제를 해결합니다. 이산형 데이터의 분모가 0일 때 아주 작은 엡실론을 더하면 결과값이 수십만 배로 폭발하여 트리 모델에 치명적인 스케일 붕괴(과적합)를 일으킬 수 있으므로 1을 더해 안정화합니다.
 - **연속형 데이터 (비율, 표준편차 등): `+ ε` 처리 (수치적 안정화, Numerical Stabilization)**
-    - *사유:* 미세한 소수점을 다루는 연속형 데이터에 상수 1을 더하면, 원래 데이터가 가진 예민한 변동성 신호(Signal Masking)가 훼손됩니다. 따라서 정보 손실을 최소화하기 위해 극소값 엡실론(1e-5)을 더해 연산 오류만 방지합니다.
+    - *사유:* 미세한 소수점을 다루는 연속형 데이터에 상수 1을 더하면, 원래 데이터가 가진 예민한 변동성 신호가 훼손됩니다. 따라서 정보 손실을 최소화하기 위해 극소값 엡실론(1e-5)을 더해 연산 오류만 방지합니다.
 
 **② 시계열 윈도우 기간 부족 (Cold Start) 처리**
 
-- 윈도우 연산 시 과거 데이터가 부족한 구간은 초기 계산 시 `NULL`을 포함하여 계산한 후, 최종 단계에서 `0`으로 일괄 치환(Imputation)합니다.
-- 초기 데이터가 불안정한 구간임을 모델이 인지할 수 있도록 별도의 Flag 변수(`is_warmup` 등)를 도입합니다.
-- 차분(Difference) 데이터의 경우, 관측 첫날의 결측치는 `0`으로 처리하여 노이즈를 억제합니다.
+- 차분 변수는 첫 행은 NULL로 둠.
+- 윈도우 연산 시 과거 데이터가 부족한 구간도  `NULL`을 포함하여 계산
+- 앞서 다수 결측치를 가진 90개 모델들도 마찬가지로 NULL 포함하여 계산
 
 ### 피처 생성 파이프라인 및 최종 산출물
 
-- **차분 계산 → SSP 윈도우별 계산 → AFM 계산** 순서로 진행
+- **차분 계산 → 통계적 특징 추출 윈도우별 계산 → 도메인 기반 특징 공학 계산** 순서로 진행
 - 모든 산출물 파일은 데이터 압축 효율이 높은 `zstd` 포맷의 Parquet 형식으로 저장
-- `serial_number`와 `date`를 복합 식별키(Composite Key)로 사용
-- 최종적으로 총 268개의 파생변수가 생성됨
+- `serial_number`와 `date`를 복합 식별키로 사용
+- 최종적으로 총 304 - 19개의 파생변수가 생성됨
 
 | **파일명** | **포함 내역 및 설명** | **변수 개수** |
 | --- | --- | --- |
-| `rfe_sample_diff.parquet` | **기초 데이터**
+| `fs_sample_diff.parquet` | **기초 데이터**
 원본 데이터(19개) +  차분(18개) - failure - date/serial_number   | 40 - 3 = 37개 |
-| `rfe_sample_ssp_7d.parquet` | **7일 SSP 순수 통계량**
+| `fs_sample_7d.parquet` | **7일 통계적 특징 추출 순수 통계량**
 7일 윈도우가 적용된 핵심 속성(184, 194, 241, 242, Reads, Seeks, 190)의 통계량 | 58 - 2 = 56개 |
-| `rfe_sample_ssp_14d.parquet` | **14일 SSP 순수 통계량**
+| `fs_sample_14d.parquet` | **14일 통계적 특징 추출 순수 통계량**
 가장 많은 속성(17개)이 포함된 14일 주기 단기/중기 통계 데이터 | 76 - 2 = 74개 |
-| `rfe_sample_ssp_28d.parquet` | **28일 SSP 순수 통계량**
+| `fs_sample_28d.parquet` | **28일 통계적 특징 추출 순수 통계량**
 하드디스크의 장기 노화 상태 및 누적 피로도를 나타내는 28일 주기 데이터 | 76 - 2 = 74개 |
-| `rfe_sample_afm_windowed.parquet` | **윈도우 기반 복합체**
-윈도우형 AFM(20개) | 24 - 2 = 22개 |
-| `rfe_sample_afm_daily_status.parquet` | **디스크 상태 이력 (정적/이력)**
-손상 여부 플래그 및 장애 발생 후 경과일 등 | 18 - 2 = 16개 |
-| `rfe_sample_afm_daily_impact.parquet` | **디스크 부하 보고서 (동적/수치)**
-에러 밀도, 작업량 비율 등 수치적으로 모델링된 부하 지표 | 30 - 2 = 28개 |
+| `fs_sample_windowed.parquet` | **윈도우 기반 복합체**
+윈도우형 도메인 기반 특징 공학(20개) | 18 - 2 = 16개 |
+| `fs_sample_daily_status.parquet` | **디스크 상태 이력 (정적/이력)**
+손상 여부 플래그 및 장애 발생 후 경과일 등 | 24 - 2 = 20개 |
+| `fs_sample_daily_impact.parquet` | **디스크 부하 보고서 (동적/수치)**
+에러 밀도, 작업량 비율 등 수치적으로 모델링된 부하 지표 | 30 - 2 = 27개 |
 | **Total** | **RFE 투입 피처 총 개수 (중복 키 제외 순수 변수)** | **319 - 15 = 304개** |
 </aside>
 
 ---
 
-## **5. 변수 선택**
+## **5. 특성 선택**
 
-#### rfe_sample_train, rfe_sample_test 파일 생성
+#### fs_sample_train, fs_sample_validation 파일 생성
 
 ```markdown
 # RFE용 데이터셋 제작
-1. 고장 개체 비율 rfe_sample_train 8 : rfe_sample_test 2
+1. 고장 개체 비율 fs_sample_train 8 : fs_sample_validation 2
 2. serial_number 단위에서 failure 비율 유지하여 분할
 3. 학습 세트는 정상 행은 배정받은 개체 내부에서 랜덤시드를 사용하여 고장 행의 10배수 샘플링
 4. 테스트 세트는 정상 행은 배정받은 개체 내부에서 랜덤시드를 사용하여 고장 행의 100배수 샘플링
@@ -585,10 +594,6 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 �
         - RFE를 돌리면 원본 `smart_5`와 `smart_5_3일_이동평균` 중 예측력이 미세하게 더 높은 단 하나만 살아남고 나머지는 제거됩니다. 이런 식으로 불필요한 시계열 중복 특성을 솎아내고 가장 강력한 특성만 남기면 자연스럽게 15~25개 선으로 최적화됩니다.
     </aside>
     
-- RFE 전 변수 제거
-    - RFE는 만능이 아님
-    - RFE는 변수 기여도를 기반으로 작동하기 때문에 지표가 희석될 수 있음
-    - 너무 정보량이 적은 변수, 하위호환 변수 제거
 - 재귀적 특성 제거(RFE, Recursive Feature Elimination)
     
     <aside>
@@ -598,7 +603,7 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 �
     **1. RFE 파이프라인 동작 단계**
     
     - **초기 학습:** 전체 파생 변수를 포함하여 모델을 학습시킵니다.
-    - **중요도 산출:** 학습된 모델에서 각 변수의 기여도(Feature Importance)를 추출하여 정렬합니다.
+    - **중요도 산출:** 학습된 모델에서 각 변수의 기여도(Feature Importance)를 추출하여 정렬합니다. (SHAP 변수중요도 가능)
     - **하위 변수 제거:** 기여도가 가장 낮은 변수를 제거합니다. (연산 효율을 위해 하위 2~3개를 그룹 단위로 제거할 수 있습니다.)
     - **성능 검증:** 남은 변수들로 교차 검증(CV)을 수행하여 목적 지표(PR-AUC 등)의 변화를 기록합니다.
     - **반복 수행:** 목표한 변수 개수에 도달하거나, 성능이 급격히 하락하는 임계점(Elbow Point)이 확인될 때까지 위 과정을 재귀적으로 반복합니다.
@@ -623,7 +628,9 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 �
     </aside>
     
 
-### 1. 변수 grouping
+<aside>
+
+### 1. 특성 grouping
 
 변수가 설명하는 의미 기반 그룹
 
@@ -664,108 +671,220 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 �
 - 그룹 내에서 상관계수가 0.9를 넘는 변수에 대해 가지치기
     - 규칙 + 도메인 지식 적용
     1. failure에서 더 뚜렷한 신호 (KS 통계량 기반)
-    2. 안정성 (노이즈 적은)
-    3. 해석 단순성 (고장을 설명하기 쉬운)
+        - KS 통계량
+            
+            
+            ![image.png](attachment:00b44027-d48f-40d7-a6d7-be7db143e512:image.png)
+            
+            ![image.png](attachment:8e0e69e7-5601-4a5c-975d-3df83e8aae69:image.png)
+            
+            $KS = \max |F_{failure}(x) - F_{normal}(x)|$
+            
+            한 변수의 고장과 비고장 분포의 차이를 점수화
+            
+            두 분포를 각각 누적 분포 함수(CDF)로 변환하여 가장 먼 수직거리를 계산함.
+            
+            이 변수가 얼마나 고장을 뚜렷하게 변별하는가? 
+            
+    2. 해석 용이성 (고장을 설명하기 쉬운)
+- fs_train, fs_validation 파일 생성
+    
+    2. group 내부 중복 변수 제거한 결과물
+    
+    - fs_train: https://drive.google.com/file/d/1jmiCxsiclPmcWGkhgMKBH1d1HXCCzL4M/view?usp=sharing
+    - fs_validation: https://drive.google.com/file/d/1IrRT_ZYOP6RTwgWYEanD7zlboL8Rg27B/view?usp=sharing
 
-### 3. 변수 선택
+### 3. 특성 선택
 
-- 변수 기여도(gain)를 기준으로 하위권 변수들을 재귀적으로 탈락시킴
-- 매 진행마다 5-Fold의 평균 PR-AUC를 기록하여 그래프를 그림.
-1. 전체 변수에 대해 100개가 남을 때까지 10개씩 탈락시킴
-2. 50개가 남을 때까지 5개씩 탈락시킴
-3. 이후 1개씩 탈락시키며 그래프의 엘보우 포인트를 확인하여 결정함
-    - 만약 확실한 지점이 없다면 목표 변수 개수(20개) 전후로 결정함
-
----
-
-## **5. 모델 훈련**
-
-- 모델 훈련
-    
-    <aside>
-    
-    극단적인 클래스 불균형(약 1 : 1400)을 해소하고 메모리 한계를 극복하기 위해, 모델 훈련 시 정상 데이터에 한하여 언더샘플링을 적용
-    
-    - 모든 정상 데이터를 학습에 사용하지 않는 논리적 근거
-        - 시계열적 중복성 (Temporal Redundancy): 고장이 임박한 디스크는 데이터 분포의 변화가 뚜렷하지만, 건강한 디스크는 수백 일 동안 데이터의 변화가 거의 없습니다. 매일 연속된 정상 데이터를 모두 학습시키는 것은 동일한 노이즈를 중복 학습시키는 것에 불과합니다.
-        - 선행 연구 기반 타당성: 관련 연구에 따르면, 정상 데이터의 시계열 중복성으로 인해 무작위 다운샘플링을 통해 전체의 10%만 유지하더라도 모든 샘플을 사용할 때와 비교하여 예측 정확도가 하락하지 않는 것으로 증명되었습니다. 이를 통해 네트워크 대역폭과 연산 오버헤드를 획기적으로 줄일 수 있습니다.
-        - 앙상블 연산 비용의 물리적 한계: 소수 클래스인 고장 임박 데이터는 약 5만 6천 개입니다. 전체 8천만 개의 정상 데이터를 한 번씩이라도 모두 소진하려면 최소 1,400개 이상의 훈련 세트($n$)를 생성하여 앙상블을 수행해야 합니다. 여기에 Optuna 하이퍼파라미터 튜닝까지 결합될 경우, 실무적으로 감당할 수 없는 막대한 컴퓨팅 비용과 시간이 발생합니다.
-    - 샘플링 방식: 행(Row) 단위 무작위 추출
-        - 정상 데이터를 덜어낼 때는 개체(Entity) 단위가 아닌, 훈련 셋 전체의 '행(Row) 단위' 무작위 추출을 수행
-        - 특정 정상 디스크의 지루한 1년 치 데이터를 통째로 넣는 대신, 수만 대의 다양한 하드디스크가 가진 다채로운 정상 패턴을 골고루 수집함으로써 앙상블 모델의 다양성을 극대화
-        - (중복 데이터를 줄이고 다양성을 확보)
-    </aside>
-    
-- 앙상블 최적화
-    
-    <aside>
-    
-    비대칭 언더배깅 및 하이퍼파라미터 최적화
-    
-    - 학습 모델: LightGBM
-        - 빠른 연산 속도와 우수한 성능을 자랑하는 트리 기반의 LightGBM을 채택
-    - 훈련 방법론: 비복원 추출 기반의 비대칭 언더배깅(Asymmetric Underbagging)
-        - 복원 추출 시 발생할 수 있는 과적합을 방지하기 위해
-    - 최적의 언더샘플링 규모 경험적 탐색
-        - 훈련셋의 언더샘플링 비율에 따른 검증 셋의 PR-AUC 점수 궤적을 기록하고 추적
-        - 정상 데이터의 투입량을 늘린다고 해서 성능이 무한정 비례하여 상승하지 않으며, 특정 시점부터는 연산 비용만 급증하는 정보량 포화 지점이 존재함
-        - 따라서 PR-AUC가 최고점에 도달하거나 성능 향상폭이 급격히 둔화되는 엘보우 포인트(Elbow Point)를 식별하여, '연산 비용 최소화'와 '예측 성능 극대화'의 최적 균형점을 갖춘 샘플링 규모를 과학적으로 선정
-    - Optuna 기반 튜닝 (PR-AUC 최적화)
-        - 선정된 최적의 데이터 규모를 바탕으로, 앙상블 세트의 개수(n), 클래스 가중치, 그리고 LightGBM의 내부 하이퍼파라미터를 Optuna로 동시 탐색
-        - 목적 함수로는 임계값(Threshold)의 변동에 영향을 받지 않는 절대적 성능 지표인 PR-AUC를 최대화하도록 설정하여 모델의 본질적인 분류 능력을 끌어올림
-    </aside>
-    
-- 앙상블 통합 및 실무형 임계값(Threshold) 최적화
-    
-    <aside>
-    
-    - 결과 결합: n개의 개별 LightGBM 모델이 산출한 예측 확률들을 소프트 보팅(Soft Voting) 방식으로 결합하여 최종 고장 확률을 산출
-    - 오탐률 제약 기반 임계값 탐색: 앙상블의 예측 확률에 대해 그리드 서치(Grid Search)를 수행하여, 비즈니스 요구사항인 오탐률 제약조건(FPR 0.1% ~ 0.5% 등 타겟 수치 확정 필요)을 엄격히 만족하는 선에서 MCC(매튜스 상관계수)가 최대화되는 최적 임계값을 찾음 (이 과정은 시각화 그래프와 함께 도출)
-        - 만약 그리드 서치 탐색 결과 어떤 임계값에서도 목표 오탐률 제약조건을 달성하지 못할 경우, 알고리즘(Optuna) 목적 함수에 오탐률 페널티를 부여하고 모델을 전면 재학습
-    </aside>
-    
+- 진행중
+- 특성 계층 분석
+</aside>
 
 ---
 
-## 6. 모델 평가
+## **6. 모델 훈련**
 
-- 최종 테스트 시에는 실무 환경과 동일하게 매일 1일씩 전진하는 슬라이딩 윈도우를 적용해 일일 롤링 추론 수행.
-- 기술적 평가(성적표)는 행(Row)별로 다 소진해서 계산하되, 실무적 평가(보고서)는 개체(Entity)별 첫 탐지 시점을 기준으로 요약
-    1. **모델 평가 리포트 (행 단위)**
-        
-        테스트 셋 전체 행에 대해 임계값을 적용하여 혼동 행렬(Confusion Matrix)을 구합니다.
-        
-        - **지표:** MCC, PR-AUC, F1-Score
-        - **비고:** 모델의 수학적 성능 증명용.
-    2. **실무 운영 리포트 (개체 단위)**
-        
-        각 시리얼 넘버별로 시간순 정렬 후, **'최초 알람 발생 시점'**을 기준으로 분석합니다.
-        
-        - **고장 탐지율 (Hit Rate):** 전체 고장 개체 중 $D-10 \sim D-1$ 사이에 알람이 한 번이라도 울린 개체의 비율.
-        - **평균 사전 경보 시간 (Avg. Lead Time):** 알람이 울린 개체들이 평균적으로 고장 몇 일 전에 알려줬는가?
-        - **오탐 개체 수:** 고장이 아닌데 알람이 울린 '시리얼 넘버'의 개수. (실무자들은 하루에 몇 개의 '깡통 알람'이 발생하는지에 민감합니다.)
-- 불균형 데이터의 특성상 정확도보다는 F1-score, 오탐률, PR-AUC, 매튜스 상관계수(MCC)에 중점.
-- 모델 평가 체계: OOT 분할과 일일 롤링 추론(Rolling Inference)의 실무적 무결성
-    - **데이터 무결성 (OOT Split)**: 랜덤 분할이 아닌 절대적 시간축(6:2:2)을 기준으로 데이터를 나누어, 미래를 미리 보고 과거를 맞추는 미래 참조 누수를 차단함.
-    - **실무 재현성 (Rolling Inference)**: 매일 자정 로그를 수집하고 추론하는 실제 관제 환경과 동일하게 **1일 단위 슬라이딩 윈도우** 기법을 적용하여, 모델의 일관된 방어력을 검증함.
-    - **평가 엄격성 (MCC & PR-AUC)**: 정확도(Accuracy)나 ROC-AUC의 착시를 버리고, 1:1400의 극단적 불균형 데이터에서 진성 고장 탐지와 오탐 최소화를 엄중히 따지는 지표에 집중함.
-- 완화된 평가 윈도우(Relaxed Evaluation Window)
-    
-     기법의 도입이 필수적이다. 모델 파라미터의 학습 및 가중치 업데이트 시에는 명확한 열화 패턴이 짙은 D-10 구간을 타겟 변수로 강제하더라도, 추론 및 평가 프레임워크 상에서는 D-30부터 D-1 사이의 어느 선행 시점에서든 알람을 발생시켜 유지보수 시간을 벌어주었다면 이를 모두 정탐(True Positive)으로 승격하여 간주하는 평가 룰(Rule)을 서술
-    
+최종 선택된 변수를 반영한 데이터셋 train.parquet을 제작
+
+### **1. 데이터 샘플링**
+
+전체 학습 데이터(train.parquet)는 연산 효율 및 모델 다양성 확보를 위해 10개의 서로 다른 서브셋으로 분할된다.
+
+- 모든 failure sample은 100% 포함
+- normal sample은 비복원 추출 기반으로 10:1 비율 유지
+- 각 서브셋 구성:
+    - failure: 33,984
+    - normal: 339,840
+    - total: 373,824
+- 전체 ensemble:
+    - 10 subsets → 총 3,738,240 samples
+
+### **Near-failure importance sampling**
+
+failure 직전 구간의 정보 손실을 줄이기 위해 time-to-failure 기반 가중 샘플링을 적용한다.
+
+- failure 이전 일정 구간(예: 10~50 days)을 중요 구간으로 정의
+- 해당 구간의 샘플링 확률을 증가시키고
+- distant normal samples는 상대적으로 낮은 확률로 선택
 
 ---
 
-## 7. 모델 해석
+### 2. 모델 학습
 
-- SHAP: 어떤 요소 때문에 고장이 났는가를 규명
-- **Global(전역) 및 Local(국소) 이중 해석 체계**
-    - **전역적 해석 (Global Interpretability):** SHAP Summary Plot 등을 이용해 전체 하드디스크 집단에서 어떤 SMART 변수(예: SMART 5, 187 등)가 예측 전반에 가장 큰 영향을 미치는지 거시적인 트렌드를 분석합니다.
-    - **국소적 해석 (Local Interpretability):** 현장 엔지니어가 "특정 시리얼 넘버(예: S3008532_1)의 디스크 알람이 오늘 왜 울렸는가?"를 직관적으로 납득할 수 있도록, SHAP Waterfall Plot이나 LIME을 사용해 개별 디스크의 예측 근거(예: "온도는 정상이지만 명령 시간 초과 횟수가 급증하여 고장 확률 85%로 판판됨")를 개별적으로 설명하는 파이프라인을 추가합니다.
-- 시계열 의존성(Temporal Dependence) 분석
-    
-    하드디스크 고장은 하루아침에 일어나는 것이 아니라 시간 흐름에 따른 점진적인 열화(Degradation) 과정입니다. 따라서 단순히 정적인 SHAP 값이 아니라, '시간의 흐름에 따른 SMART 지표의 변화 궤적'이 모델의 예측 확률에 어떻게 기여했는지를 보여주는 시계열 중심의 SHAP 의존성 분석을 수행하겠다고 보강하면 시계열 데이터라는 특성을 완벽하게 살릴 수 있습니다.
-    
-    → 잘 맞춘 고장 샘플 1~2개로 마지막 30일 그래프 그리기 (국소적 해석)
-    
-- 실무 적용 시 기대효과
+각 서브셋에 대해 개별 LightGBM 모델을 학습하고, 다음과 같은 ensemble을 구성한다.
+
+- 모델: LightGBM
+- 방식: asymmetric underbagging ensemble
+
+각 모델은 서로 다른 정상 데이터 샘플링을 기반으로 학습되므로 diversity를 확보한다.
+
+---
+
+### 3. 앙상블
+
+각 서브셋 모델은 동일한 validation set(실제 분포 1405:1)을 예측하며,
+
+최종 예측값은 다음과 같이 계산된다:
+
+- soft voting 방식 (probability averaging)
+
+$$
+\hat{p} = \frac{1}{K} \sum_{k=1}^{K} p_k
+$$
+
+---
+
+### 4. 평가와 하이퍼파라미터 튜닝
+
+모델 성능 평가는 다음 기준으로 수행된다:
+
+- subset-based asymmetric underbagging ensemble
+- **VAL PR-AUC**: 실제 운영 환경 분포 (1:1405)에서의 성능
+    - 현실 세계에서의 일반화 성능 측정 기준임
+
+### 최적화 방법
+
+Hyperparameter tuning은 Optuna를 사용하여 수행하며, 목적 함수는 다음과 같다:
+
+- maximize: VAL PR-AUC
+
+추가적으로 다음 조건을 고려한다:
+
+- subset 간 성능 괴리 최소화
+- threshold-independent metric(PR-AUC) 사용
+
+---
+
+### 5. 언더샘플링의 근거
+
+정상 클래스는 다음 특성을 가진다:
+
+- 높은 temporal redundancy
+- 장기간 안정 상태 반복
+
+따라서 전체 정상 데이터를 모두 사용하는 대신:
+
+- 행(row) 단위 random undersampling을 통해
+- 정보량이 높은 다양한 정상 상태를 유지하면서
+- 계산 비용을 줄인다
+
+이로 인해:
+
+- redundancy 감소
+- ensemble diversity 증가
+- memory constraint 해결
+
+---
+
+## 7. 임계값 튜닝
+
+제약 조건 최적화
+
+<aside>
+
+1. val_calib.parquet로 임계점 그리드서치
+2. FPR 상한 설정
+3. FPR 범위 안에서 Recall 최대화 지점 선택
+
+FPR 1%에서 Recall 00%라는 문장을 뽑아야 함. 
+
+→ 허용한 오탐율 내에서 탐지 성능을 최대화한 운영점
+
+</aside>
+
+---
+
+## 8. 모델 평가
+
+## **1. 행 단위 점수 평가**
+
+모델이 각 시점(행)에 대해 출력한 확률을 기준으로, threshold를 적용하여 성능을 정량적으로 평가한다.
+
+- **평가 목적**
+    - 모델 자체의 예측 품질 및 분류 능력 평가
+    - 서로 다른 모델/특성 조합 비교
+- **평가 지표**
+    - PR-AUC (ranking 성능)
+    - MCC (class imbalance 반영)
+    - F1-score (threshold 기반 성능)
+- **특징**
+    - 모든 샘플을 독립적으로 평가
+    - 시간 구조는 고려하지 않음
+
+---
+
+## **2. 실무형 롤링 평가**
+
+실제 운영 환경을 모사하여 시간 축과 개체 단위를 반영한 평가를 수행한다.
+
+- **평가 방식**
+    - 1일 단위 rolling inference (sliding window)
+    - 시계열 순서를 유지한 예측 수행
+- **평가 단위**
+    - 개체(Entity: serial number) 기준 평가
+- **핵심 지표**
+    - 고장 탐지율 (Hit Rate)
+    - 평균 사전 경보 시간 (Lead Time)
+        - 탐지 못한 개체는 계산에서 제외
+    - 오탐율 (정상 개체에서 잘못 울린 비율)
+    - 미탐율 (고장 개체에서 안울린 비율)
+- **특징**
+    - 실제 운영 환경과 동일한 구조
+    - “얼마나 빨리, 얼마나 정확하게 잡는가” 평가
+
+---
+
+## 9. 고장 해석
+
+### **8.1 전역적 해석 (Global Interpretability)**
+
+SHAP Summary Plot을 기반으로 전체 데이터에서 주요 고장 기여 변수를 분석한다.
+
+- 주요 SMART feature 중요도 분석
+- 전반적인 고장 패턴 구조 파악
+
+---
+
+### **8.2 국소적 해석 (Local Interpretability)**
+
+개별 디스크 단위에서 SHAP Waterfall Plot을 활용하여 특정 예측 결과의 근거를 설명한다.
+
+- 시리얼 넘버별 고장 원인 분석
+- 엔지니어 해석 가능 형태 제공
+
+---
+
+### **8.3 시간 기반 해석 (Temporal Interpretation)**
+
+고장은 시간에 따른 점진적 열화 과정이므로, 일정 기간(window)의 feature 변화가 예측에 미치는 영향을 분석한다.
+
+- 고장 전 일정 기간(예: 30일) feature trajectory 분석
+- SHAP 기반 기여도 변화 추적
+
+---
+
+### **8.4 실무 활용 효과**
+
+- 조기 경보 원인 설명 가능
+- 유지보수 판단 근거 제공
+- 모델 신뢰성 향상

@@ -3,7 +3,7 @@
 #
 #  동작 방식
 #  ---------
-#  1. rfe_config.py 의 INCLUDE_COLS 전체로 baseline 학습 → PR-AUC 기록
+#  1. fs_config.py 의 INCLUDE_COLS 전체로 baseline 학습 → PR-AUC 기록
 #  2. 데이터에 존재하지만 INCLUDE_COLS에 없는 변수를 하나씩 추가하며 재학습 → PR-AUC 기록
 #  3. 총 M+1 번 실험 (baseline 1회 + 변수 추가 M회)
 #
@@ -30,7 +30,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import average_precision_score
 
 # ── config 로드 ──────────────────────────────────────────────
-from config.rfe_config import (
+from config.fs_config import (
     TRAIN_PATH,
     TEST_PATH,
     INCLUDE_COLS,

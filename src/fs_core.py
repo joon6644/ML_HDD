@@ -1,8 +1,8 @@
 """
-rfe_core.py  ─  RFE 파이프라인 엔진
+fs_core.py  ─  RFE 파이프라인 엔진
 ────────────────────────────────────
 역할:  데이터 로드 → feature 결정 → CV 학습 → 평가 → 중요도
-여기에는 실험 로직을 넣지 않는다. 설정은 config/rfe_config.py 에서만.
+설정은 config/fs_config.py 에서만.
 """
 
 from __future__ import annotations
@@ -176,7 +176,7 @@ def run_cv(
     """
     Stratified K-Fold CV → PR-AUC 통계 + test 평가 반환.
     Returns dict with keys: cv_scores, cv_mean, cv_std, test_prauc,
-                            oof_pred, test_pred, models
+                            oof_pred, val_pred, models
     """
     skf = StratifiedKFold(
         n_splits=cfg.CV_N_SPLITS,
@@ -210,20 +210,20 @@ def run_cv(
 
         print(f"  Fold {fold}: PR-AUC = {fold_prauc:.5f}")
 
-    # ── 전체 train으로 단일 모델 재학습 → test 평가 ──────────────
-    print("\n  전체 train 재학습 중 (test 평가용)...")
+    # ── 전체 train으로 단일 모델 재학습 → validation 평가 ──────────────
+    print("\n  전체 train 재학습 중 (validation 평가용)...")
     final_model = LGBMClassifier(**cfg.LGBM_PARAMS)
     final_model.fit(X_train, y_train)
-    final_test_pred = final_model.predict_proba(X_test)[:, 1]
-    test_prauc = average_precision_score(y_test, final_test_pred)
+    final_val_pred = final_model.predict_proba(X_test)[:, 1]
+    val_prauc = average_precision_score(y_test, final_val_pred)
 
     return {
         "cv_scores":   cv_scores,
         "cv_mean":     float(np.mean(cv_scores)),
         "cv_std":      float(np.std(cv_scores)),
-        "test_prauc":  test_prauc,
+        "val_prauc":  val_prauc,
         "oof_pred":    oof_pred,
-        "test_pred":   final_test_pred,
+        "val_pred":   final_val_pred,
         "models":      models,
         "final_model": final_model,
     }
@@ -542,9 +542,10 @@ def print_results(result: dict, cfg):
     print(SEP)
     print("  RESULT SUMMARY")
     print(SEP)
-    print(f"\n  CV PR-AUC  : {result['cv_mean']:.5f}  ±  {result['cv_std']:.5f}")
+    print(f"\n  CV PR-AUC  : {result['cv_mean']:.5f}")
+    print(f"  CV std  : {result['cv_std']:.5f}")
     print(f"  CV scores  : {[round(s, 5) for s in result['cv_scores']]}")
-    print(f"\n  TEST PR-AUC: {result['test_prauc']:.5f}")
+    print(f"\n  VAL PR-AUC: {result['val_prauc']:.5f}")
     print(SEP)
 
 
@@ -600,6 +601,13 @@ def run_pipeline(
     print("📂  데이터 로드 중...")
     df_train = pd.read_parquet(cfg.TRAIN_PATH)
     df_test  = pd.read_parquet(cfg.TEST_PATH)
+
+    # ── 메타 컬럼 자동 제거 (serial_number, date) ────────────
+    _DROP_META = ["serial_number", "date"]
+    for _df_name, _df in [("train", df_train), ("test", df_test)]:
+        _found = [c for c in _DROP_META if c in _df.columns]
+        if _found:
+            _df.drop(columns=_found, inplace=True)
 
     # ── 2. feature 결정 ───────────────────────────────────────
     features, audit = resolve_features(cfg, df_train.columns.tolist())
@@ -658,9 +666,9 @@ def run_pipeline(
         print("\n\U0001f4ca  혼동행렬 (테스트 세트) 출력 중...")
         cm = plot_confusion(
             y_test,
-            cv_result["test_pred"],
+            cv_result["val_pred"],
             threshold=confusion_threshold,
-            title="Confusion Matrix (Test set)",
+            title="Confusion Matrix",
         )
 
     return {
