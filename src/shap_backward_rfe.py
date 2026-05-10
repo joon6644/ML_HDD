@@ -1,9 +1,18 @@
+"""
+SHAP 기반 Backward Recursive Feature Elimination (RFE) 파이프라인.
+
+이 스크립트는 SHAP 중요도를 기반으로 불필요한 피처를 단계적으로 제거하며 모델의 성능 변화를 추적합니다.
+주요 기능:
+- StratifiedGroupKFold를 통한 교차 검증 (Serial Number 기반 그룹화로 데이터 누수 방지)
+- SHAP (TreeExplainer)를 이용한 피처 기여도 산출
+- 매 단계마다 가장 기여도가 낮은(SHAP value가 작은) 피처를 제거
+- 각 단계별 CV PR-AUC 및 Test PR-AUC 결과를 CSV/Excel로 저장
+
+모든 파라미터(Fold 수, SHAP 샘플 수 등)는 'config/fs_config.py'의 설정을 공유합니다.
+"""
+
 # =============================================================
 #  shap_backward_rfe.py  ─  SHAP 기반 Backward RFE 자동화
-#  - SHAP 중요도 1위 feature를 재귀적으로 제거
-#  - 3-fold CV + 전체 train 재학습 test 평가
-#  - 변수 1개 남을 때까지 반복
-#  - 결과를 CSV / Excel로 저장
 # =============================================================
 
 import sys, os, warnings, logging, contextlib
@@ -17,8 +26,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import numpy as np
 import pandas as pd
 import shap
-from lightgbm import LGBMClassifier, early_stopping
-from sklearn.model_selection import StratifiedKFold
+from lightgbm import LGBMClassifier
+from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold
 from sklearn.metrics import average_precision_score
 
 # C레벨 stderr("1 warning generated") 억제용
@@ -35,26 +44,34 @@ def suppress_c_stderr():
         os.close(devnull_fd)
 
 # ── config에서 파라미터 가져오기 ─────────────────────────────
-from config.fs_config import LGBM_PARAMS
+from config.fs_config import LGBM_PARAMS, CV_N_SPLITS, SHAP_SAMPLE_N
 
-TRAIN_PATH  = r"data\fs_data\fs_train.parquet"
-TEST_PATH   = r"data\fs_data\fs_validation.parquet"
+TRAIN_PATH  = r"data\fs_sample_data\fs_train.parquet"
+TEST_PATH   = r"data\fs_sample_data\fs_validation.parquet"
 OUTPUT_CSV  = r"scripts\shap_backward_fs_results.csv"
-OUTPUT_XLSX = r"scripts\shap_backward_fs_results.xlsx"
 
-N_FOLDS     = 3
-SHAP_SAMPLE = 200
+N_FOLDS     = CV_N_SPLITS
+SHAP_SAMPLE = SHAP_SAMPLE_N
 TARGET      = "failure"
 
-# ── 3-fold 파라미터로 덮어쓰기 ───────────────────────────────
+# ── CV 파라미터 설정 ─────────────────────────────────────────
 _PARAMS = {**LGBM_PARAMS}   # 원본 건드리지 않음
 
 
-def run_fold_cv(X_tr_all, y_tr_all):
-    """3-fold CV → (cv_scores, fold_models)"""
-    skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
+def run_fold_cv(X_tr_all, y_tr_all, groups=None):
+    """StratifiedGroupKFold CV → (cv_scores, fold_models)"""
+    if N_FOLDS <= 1:
+        return [0.0], []
+
+    if groups is not None:
+        cv = StratifiedGroupKFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
+        split_gen = cv.split(X_tr_all, y_tr_all, groups=groups)
+    else:
+        cv = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
+        split_gen = cv.split(X_tr_all, y_tr_all)
+
     cv_scores, models = [], []
-    for tr_idx, val_idx in skf.split(X_tr_all, y_tr_all):
+    for tr_idx, val_idx in split_gen:
         X_tr, X_val = X_tr_all.iloc[tr_idx], X_tr_all.iloc[val_idx]
         y_tr, y_val = y_tr_all.iloc[tr_idx], y_tr_all.iloc[val_idx]
         m = LGBMClassifier(**_PARAMS)
@@ -62,20 +79,12 @@ def run_fold_cv(X_tr_all, y_tr_all):
             X_tr, y_tr,
             eval_set=[(X_val, y_val)],
             eval_metric="average_precision",
-            callbacks=[early_stopping(30, verbose=False)],
         )
         prob = m.predict_proba(X_val)[:, 1]
         cv_scores.append(average_precision_score(y_val, prob))
         models.append(m)
     return cv_scores, models
 
-
-def get_test_prauc(X_tr_all, y_tr_all, X_te, y_te):
-    """전체 train 재학습 단일 모델 → test PR-AUC"""
-    m = LGBMClassifier(**_PARAMS)
-    m.fit(X_tr_all, y_tr_all)
-    prob = m.predict_proba(X_te)[:, 1]
-    return average_precision_score(y_te, prob)
 
 
 def top_shap_feature(models, X_train, features):
@@ -94,16 +103,24 @@ def top_shap_feature(models, X_train, features):
         sv_list.append(sv)
 
     mean_abs = np.abs(np.mean(sv_list, axis=0)).mean(axis=0)
-    return features[np.argmin(mean_abs)] ########################### argmax, argmin
+    return features[np.argmax(mean_abs)] # 제거 대상: SHAP 중요도가 가장 낮은 변수 (argmin)
 
 
 # ── 메인 ─────────────────────────────────────────────────────
 if __name__ == "__main__":
     base_dir = os.path.join(os.path.dirname(__file__), "..")
-    train_df = pd.read_parquet(os.path.join(base_dir, TRAIN_PATH))
-    test_df  = pd.read_parquet(os.path.join(base_dir, TEST_PATH))
+    train_df = pd.read_parquet(os.path.join(base_dir, TRAIN_PATH)).sort_values(["serial_number", "date"]).reset_index(drop=True)
+    test_df  = pd.read_parquet(os.path.join(base_dir, TEST_PATH)).sort_values(["serial_number", "date"]).reset_index(drop=True)
 
-    features = [c for c in train_df.columns if c != TARGET]
+    # Leakage 방지를 위한 메타 컬럼 정의 및 제거
+    DROP_COLS = [TARGET, "serial_number", "date"]
+    
+    # Group 정보 사전 추출 (Serial Leakage 방지용)
+    groups = train_df["serial_number"].copy() if "serial_number" in train_df.columns else None
+
+    # Feature 리스트 확정 및 정렬 (재현성)
+    features = sorted([c for c in train_df.columns if c not in DROP_COLS])
+    
     X_train  = train_df[features]
     y_train  = train_df[TARGET]
     X_test   = test_df[features]
@@ -117,14 +134,16 @@ if __name__ == "__main__":
     print(f"시작 feature 수: {len(features)}")
     print("=" * 70)
 
+    out_csv = os.path.join(base_dir, OUTPUT_CSV)
+    os.makedirs(os.path.dirname(out_csv), exist_ok=True)
+
     while len(features) > 1:
         exp_num  += 1
         exp_id    = f"exp_{exp_num:03d}"
-        change    = "baseline" if removed is None else f"remove: {removed}"
+        change    = "baseline" if removed is None else removed
 
         # ── 학습 ──────────────────────────────────────────────
-        cv_scores, fold_models = run_fold_cv(X_train, y_train)
-        test_prauc             = get_test_prauc(X_train, y_train, X_test, y_test)
+        cv_scores, fold_models = run_fold_cv(X_train, y_train, groups=groups)
         cv_mean = float(np.mean(cv_scores))
         cv_std  = float(np.std(cv_scores))
 
@@ -133,18 +152,19 @@ if __name__ == "__main__":
             "exp_id":      exp_id,
             "base_exp":    prev_exp_id,
             "change":      change,
-            "n_features":  len(features),
-            "CV PR-AUC":   round(cv_mean, 4),
-            "CV std":      round(cv_std,  4),
-            "test PR-AUC": round(test_prauc, 4),
+            "CV PR-AUC":   round(cv_mean, 5),
+            "CV std":      round(cv_std,  5),
         }
         results.append(row)
 
         print(
             f"[{exp_id}] n={len(features):3d} | "
-            f"CV={cv_mean:.4f}±{cv_std:.4f} | "
-            f"test={test_prauc:.4f} | {change}"
+            f"CV={cv_mean:.5f}±{cv_std:.5f} | {change}"
         )
+
+        # ── 중간 저장 ──────────────────────────────────────────
+        df_out = pd.DataFrame(results)
+        df_out.to_csv(out_csv, index=False, encoding="utf-8-sig")
 
         # ── 다음 제거 feature (SHAP 1위) ──────────────────────
         next_remove = top_shap_feature(fold_models, X_train, list(features))
@@ -156,16 +176,8 @@ if __name__ == "__main__":
         X_train     = X_train[features]
         X_test      = X_test[features]
 
-    # ── 저장 ──────────────────────────────────────────────────
+    # ── 최종 결과 ──────────────────────────────────────────────
     df_out = pd.DataFrame(results)
 
-    out_csv  = os.path.join(base_dir, OUTPUT_CSV)
-    out_xlsx = os.path.join(base_dir, OUTPUT_XLSX)
-
-    df_out.to_csv(out_csv,  index=False, encoding="utf-8-sig")
-    df_out.to_excel(out_xlsx, index=False)
-
-    print("\n" + "=" * 70)
     print(df_out.to_string(index=False))
-    print(f"\n✅ CSV  → {out_csv}")
-    print(f"✅ XLSX → {out_xlsx}")
+    print(f"✅ CSV → {out_csv}")

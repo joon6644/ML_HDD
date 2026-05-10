@@ -25,21 +25,26 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
 import pandas as pd
-from lightgbm import LGBMClassifier, early_stopping
+from lightgbm import LGBMClassifier
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import average_precision_score
 
 # ── config 로드 ──────────────────────────────────────────────
+from config import fs_config as cfg
 from config.fs_config import (
     TRAIN_PATH,
     TEST_PATH,
-    INCLUDE_COLS,
     TARGET_COL,
     LGBM_PARAMS,
     CV_N_SPLITS,
     CV_SHUFFLE,
     CV_SEED,
 )
+from src import fs_core
+
+# ── 출력 경로 ────────────────────────────────────────────────
+BASE_DIR    = os.path.join(os.path.dirname(__file__), "..")
+OUTPUT_CSV  = os.path.join(BASE_DIR, "scripts", "addition_test_results.csv")
 
 # ── 파라미터 복사 (원본 건드리지 않음) ──────────────────────
 _PARAMS = {**LGBM_PARAMS}
@@ -52,7 +57,7 @@ def evaluate(X_tr_all: pd.DataFrame, y_tr_all: pd.Series,
     Stratified K-Fold CV → CV PR-AUC 통계 + 전체 train 재학습 test PR-AUC.
     Returns
     -------
-    dict: cv_mean, cv_std, cv_scores, test_prauc
+    dict: cv_mean, cv_std, cv_scores
     """
     skf = StratifiedKFold(n_splits=CV_N_SPLITS, shuffle=CV_SHUFFLE, random_state=CV_SEED)
     cv_scores = []
@@ -66,22 +71,14 @@ def evaluate(X_tr_all: pd.DataFrame, y_tr_all: pd.Series,
             X_tr, y_tr,
             eval_set=[(X_val, y_val)],
             eval_metric="average_precision",
-            callbacks=[early_stopping(30, verbose=False)],
         )
         prob = m.predict_proba(X_val)[:, 1]
         cv_scores.append(average_precision_score(y_val, prob))
-
-    # 전체 train 재학습 → test 평가
-    final_m = LGBMClassifier(**_PARAMS)
-    final_m.fit(X_tr_all, y_tr_all)
-    test_prob   = final_m.predict_proba(X_te)[:, 1]
-    test_prauc  = average_precision_score(y_te, test_prob)
 
     return {
         "cv_mean":    float(np.mean(cv_scores)),
         "cv_std":     float(np.std(cv_scores)),
         "cv_scores":  cv_scores,
-        "test_prauc": test_prauc,
     }
 
 
@@ -92,24 +89,21 @@ if __name__ == "__main__":
     train_df = pd.read_parquet(TRAIN_PATH)
     test_df  = pd.read_parquet(TEST_PATH)
 
-    # ── INCLUDE_COLS 검증 ─────────────────────────────────────
-    available_cols = set(train_df.columns) - {TARGET_COL}
-    valid_base = [c for c in INCLUDE_COLS if c in available_cols]
+    # ── Feature 설정 ─────────────────────────────────────
+    valid_base, audit = fs_core.resolve_features(cfg, train_df.columns.tolist())
 
-    # INCLUDE_COLS에 없지만 데이터에 존재하는 변수 → 추가 대상
+    available_cols = set(train_df.columns) - {TARGET_COL}
+    meta_cols = set(getattr(cfg, "META_COLS", []))
+    available_cols -= meta_cols
+
+    # 추출된 컬럼에 없지만 데이터에 존재하는 변수 → 추가 대상
     candidate_cols = [c for c in sorted(available_cols) if c not in set(valid_base)]
 
-    missing = [c for c in INCLUDE_COLS if c not in available_cols]
-    if missing:
-        print(f"\n[WARN] 데이터에 없는 컬럼 {len(missing)}개 제외:")
-        for c in missing:
-            print(f"   - {c}")
-
     if len(valid_base) == 0:
-        raise RuntimeError("INCLUDE_COLS 에서 유효한 컬럼이 없습니다. config를 확인하세요.")
+        raise RuntimeError("추출된 유효한 컬럼이 없습니다. config를 확인하세요.")
 
     if len(candidate_cols) == 0:
-        raise RuntimeError("추가할 수 있는 변수가 없습니다. 모든 변수가 이미 INCLUDE_COLS에 있습니다.")
+        raise RuntimeError("추가할 수 있는 변수가 없습니다. 모든 변수가 이미 추출되었습니다.")
 
     y_train = train_df[TARGET_COL]
     y_test  = test_df[TARGET_COL]
@@ -118,12 +112,14 @@ if __name__ == "__main__":
     results   = []
     prev_exp  = "none"
 
+    os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+
     print(f"\n[INFO] 현재 포함된 변수(baseline) 수: {len(valid_base)}개")
     print(f"[INFO] 추가 테스트 대상 변수 수     : {len(candidate_cols)}개")
     print(f"[INFO] 총 실험 수                  : {total_exp}회  (baseline + 변수 추가 {len(candidate_cols)}회)")
     print(f"       pos rate: train={y_train.mean():.4f}, test={y_test.mean():.4f}")
     print("=" * 80)
-    print(f"{'exp_id':<10} {'base_exp':<10} {'change':<30} {'CV PR-AUC':>10} {'CV std':>8} {'test PR-AUC':>12}")
+    print(f"{'exp_id':<10} {'base_exp':<10} {'change':<30} {'CV PR-AUC':>10} {'CV std':>8}")
     print("-" * 80)
 
     # ── 실험 루프 ─────────────────────────────────────────────
@@ -153,15 +149,17 @@ if __name__ == "__main__":
             "n_features":   len(current_cols),
             "CV PR-AUC":    round(res["cv_mean"],    5),
             "CV std":       round(res["cv_std"],      5),
-            "test PR-AUC":  round(res["test_prauc"],  5),
             "CV scores":    str([round(s, 5) for s in res["cv_scores"]]),
         }
         results.append(row)
 
         print(
             f"{exp_id:<10} {prev_exp:<10} {change_str:<30} "
-            f"{res['cv_mean']:>10.5f} {res['cv_std']:>8.5f} {res['test_prauc']:>12.5f}",
+            f"{res['cv_mean']:>10.5f} {res['cv_std']:>8.5f}",
             flush=True,
         )
 
         prev_exp = exp_id
+
+        df_out = pd.DataFrame(results)
+        df_out.to_csv(OUTPUT_CSV, index=False, encoding="utf-8-sig")

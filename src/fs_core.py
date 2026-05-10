@@ -17,7 +17,7 @@ import shap
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from lightgbm import LGBMClassifier, early_stopping
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold
 from sklearn.metrics import average_precision_score
 
 warnings.filterwarnings("ignore")
@@ -172,43 +172,54 @@ def run_cv(
     X_test: pd.DataFrame,
     y_test: pd.Series,
     cfg,
+    groups: pd.Series = None,
 ) -> dict:
     """
     Stratified K-Fold CV → PR-AUC 통계 + test 평가 반환.
     Returns dict with keys: cv_scores, cv_mean, cv_std, test_prauc,
                             oof_pred, val_pred, models
     """
-    skf = StratifiedKFold(
-        n_splits=cfg.CV_N_SPLITS,
-        shuffle=cfg.CV_SHUFFLE,
-        random_state=cfg.CV_SEED,
-    )
-
     cv_scores: list[float] = []
     oof_pred  = np.zeros(len(X_train))
     models: list[LGBMClassifier] = []
 
-    for fold, (tr_idx, val_idx) in enumerate(skf.split(X_train, y_train), 1):
-        X_tr, X_val = X_train.iloc[tr_idx], X_train.iloc[val_idx]
-        y_tr, y_val = y_train.iloc[tr_idx], y_train.iloc[val_idx]
+    if cfg.CV_N_SPLITS > 1:
+        if groups is not None:
+                cv_splitter = StratifiedGroupKFold(
+                    n_splits=cfg.CV_N_SPLITS,
+                    shuffle=cfg.CV_SHUFFLE,
+                    random_state=cfg.CV_SEED,
+                )
+                split_gen = cv_splitter.split(X_train, y_train, groups=groups)
+                print("💡 [Info] StratifiedGroupKFold 적용 완료 (개체 단위 분할)")
+        else:
+            cv_splitter = StratifiedKFold(
+                n_splits=cfg.CV_N_SPLITS,
+                shuffle=cfg.CV_SHUFFLE,
+                random_state=cfg.CV_SEED,
+            )
+            split_gen = cv_splitter.split(X_train, y_train)
 
-        model = LGBMClassifier(**cfg.LGBM_PARAMS)
-        model.fit(
-            X_tr, y_tr,
-            eval_set=[(X_val, y_val)],
-            eval_metric="average_precision",
-            callbacks=[
-                early_stopping(30, verbose=False),
-            ],
-        )
+        for fold, (tr_idx, val_idx) in enumerate(split_gen, 1):
+            X_tr, X_val = X_train.iloc[tr_idx], X_train.iloc[val_idx]
+            y_tr, y_val = y_train.iloc[tr_idx], y_train.iloc[val_idx]
 
-        val_prob = model.predict_proba(X_val)[:, 1]
-        fold_prauc = average_precision_score(y_val, val_prob)
-        cv_scores.append(fold_prauc)
-        oof_pred[val_idx] = val_prob
-        models.append(model)
+            model = LGBMClassifier(**cfg.LGBM_PARAMS)
+            model.fit(
+                X_tr, y_tr,
+                eval_set=[(X_val, y_val)],
+                eval_metric="average_precision",
+            )
 
-        print(f"  Fold {fold}: PR-AUC = {fold_prauc:.5f}")
+            val_prob = model.predict_proba(X_val)[:, 1]
+            fold_prauc = average_precision_score(y_val, val_prob)
+            cv_scores.append(fold_prauc)
+            oof_pred[val_idx] = val_prob
+            models.append(model)
+
+            print(f"  Fold {fold}: PR-AUC = {fold_prauc:.5f}")
+    else:
+        print("💡 [Info] CV_N_SPLITS=1 이므로 K-Fold 교차 검증을 생략합니다.")
 
     # ── 전체 train으로 단일 모델 재학습 → validation 평가 ──────────────
     print("\n  전체 train 재학습 중 (validation 평가용)...")
@@ -216,6 +227,10 @@ def run_cv(
     final_model.fit(X_train, y_train)
     final_val_pred = final_model.predict_proba(X_test)[:, 1]
     val_prauc = average_precision_score(y_test, final_val_pred)
+
+    if cfg.CV_N_SPLITS <= 1:
+        models.append(final_model)
+        cv_scores.append(0.0)
 
     return {
         "cv_scores":   cv_scores,
@@ -599,10 +614,12 @@ def run_pipeline(
 
     # ── 1. 데이터 로드 ────────────────────────────────────────
     print("📂  데이터 로드 중...")
-    df_train = pd.read_parquet(cfg.TRAIN_PATH)
-    df_test  = pd.read_parquet(cfg.TEST_PATH)
+    df_train = pd.read_parquet(cfg.TRAIN_PATH).sort_values(["serial_number", "date"]).reset_index(drop=True)
+    df_test  = pd.read_parquet(cfg.TEST_PATH).sort_values(["serial_number", "date"]).reset_index(drop=True)
 
     # ── 메타 컬럼 자동 제거 (serial_number, date) ────────────
+    groups_train = df_train["serial_number"].copy() if "serial_number" in df_train.columns else None
+
     _DROP_META = ["serial_number", "date"]
     for _df_name, _df in [("train", df_train), ("test", df_test)]:
         _found = [c for c in _DROP_META if c in _df.columns]
@@ -633,7 +650,7 @@ def run_pipeline(
     print(f"   pos rate: train={y_train.mean():.4f}, test={y_test.mean():.4f}\n")
 
     # ── 3. CV 학습 ────────────────────────────────────────────
-    cv_result = run_cv(X_train, y_train, X_test, y_test, cfg)
+    cv_result = run_cv(X_train, y_train, X_test, y_test, cfg, groups=groups_train)
     print_results(cv_result, cfg)
 
     # ── 4. 중요도 ─────────────────────────────────────────────

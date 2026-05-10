@@ -28,9 +28,9 @@ def check_gpu() -> bool:
 
 # ─── 경로 ────────────────────────────────────────────────────
 BASE_DIR        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TRAIN_PATH      = os.path.join(BASE_DIR, "data", "fs_data", "fs_sample_train.parquet")
-TEST_PATH       = os.path.join(BASE_DIR, "data", "fs_data", "fs_sample_validation.parquet")
-FEATURE_GROUP_PATH = r"..\config\feature_groups.json"
+TRAIN_PATH      = os.path.join(BASE_DIR, "data", "fs_sample_data", "fs_train.parquet")
+TEST_PATH       = os.path.join(BASE_DIR, "data", "fs_sample_data", "fs_validation.parquet")
+FEATURE_GROUP_PATH = os.path.join(BASE_DIR, "config", "feature_groups.json")
 
 
 # ─── 실험 모드 ───────────────────────────────────────────────
@@ -45,57 +45,64 @@ INCLUDE_GROUPS: list[str] = [
 ]
 
 INCLUDE_COLS: list[str] = [
-# "s187_days_since_first",
-# "error_density_14d",
-# "smart_187_raw",
-# "smart_197_raw",
-# "s187_28d_sum",
-# "total_seeks_28d_max",
-# "total_seeks_28d_asfd",
-# "cumulative_error_score",
-# "s5_days_since_first",
-# "age_weighted_workload",
-# "s242_14d_mean",
-# "smart_241_raw",
-# "smart_242_raw",
-# "smart_9_raw",
-# "s241_14d_mean",
-# "s241_diff",
-# "s241_7d_max",
-# "total_seeks_14d_mean",
-# "s190_28d_mean",
-# "s190_28d_ewma",
-# "s190_7d_ewma",
-# "total_reads_7d_max",
-# "total_reads_14d_max",
-# "s194_14d_std",
-# "s194_28d_mean",
-# "smart_184_raw",
-# "total_reads_28d_std",
-# "total_reads_7d_dai",
+"s187_days_since_first",
+"smart_184_raw",
+"error_density_14d",
+"smart_187_raw",
+"smart_198_raw",
+"total_seeks_28d_asfd",
+"s187_28d_sum",
+"s5_days_since_first",
+"s199_days_since_last",
+"multi_error_count",
+"age_weighted_workload",
+"smart_242_raw",
+"smart_241_raw",
+"smart_9_raw",
+"total_seeks_diff",
+"s241_diff",
+"s194_28d_dai",
+"s194_28d_std",
+"s242_28d_dai",
+"total_reads_7d_asfd",
+"total_reads_7d_max",
+"s194_14d_max",
+"s194_28d_ewma",
+"s194_14d_std",
+"s190_28d_zscore",
+"s190_28d_ewma",
+"s190_28d_mean",
 
-    "smart_5_raw", 
-"smart_184_raw", 
-"smart_187_raw", 
-"smart_197_raw", 
-"smart_198_raw", 
-"timeout_5s", 
-"timeout_total", 
-"seek_error_count", 
-"smart_9_raw", 
-"smart_183_raw", 
-"smart_189_raw", 
-"smart_190_raw", 
-"smart_191_raw", 
-"smart_194_raw", 
-"smart_199_raw", 
-"smart_241_raw", 
-"smart_242_raw", 
-"total_reads", 
-"total_seeks",
+
+
+
+# ----- 원본 피처 -----
+#     "smart_5_raw", 
+# "smart_184_raw", 
+# "smart_187_raw", 
+# "smart_197_raw", 
+# "smart_198_raw", 
+# "timeout_5s", 
+# "timeout_total", 
+# "seek_error_count", 
+# "smart_9_raw", 
+# "smart_183_raw", 
+# "smart_189_raw", 
+# "smart_190_raw", 
+# "smart_191_raw", 
+# "smart_194_raw", 
+# "smart_199_raw", 
+# "smart_241_raw", 
+# "smart_242_raw", 
+# "total_reads", 
+# "total_seeks",
+
 ]
 
-# ─── [drop 모드] 제거할 그룹 / 개별 컬럼 ─────────────────────
+# ─── 제외할 메타 컬럼 (항상 무시됨) ──────────────────────
+META_COLS: list[str] = ["serial_number", "date"]
+
+# ─── [drop 모드] 제외할 그룹 / 개별 컬럼 ─────────────────────
 #  MODE == "drop" 일 때만 유효
 EXCLUDE_GROUPS: list[str] = [
     # ── 부하 / 사용량 ───────────────────────────────────────
@@ -130,12 +137,9 @@ EXCLUDE_GROUPS: list[str] = [
 
 EXCLUDE_COLS: list[str] = [
     # 그룹 제거 이후에도 개별로 추가 제거하고 싶은 컬럼
-    # "timeout_5s_diff",  
 
 
-
-
-
+# "s194_28d_mean",
 
 
 ]
@@ -172,8 +176,8 @@ CV_SHUFFLE   = True
 CV_SEED      = SEED
 
 # ─── SHAP 샘플 수 (속도 vs 정밀도) ──────────────────────────
-SHAP_SAMPLE_N = 200           # None 이면 전체 사용 (느림)
-SHAP_TOP_N    = 30            # 중요도 시각화 상위 N개
+SHAP_SAMPLE_N = 5000           # None 이면 전체 사용 (느림)
+SHAP_TOP_N    = 66            # 중요도 시각화 상위 N개
 
 # ─── 중요도 시각화 상위 N개 (Gain) ──────────────────────────
 GAIN_TOP_N = 30
