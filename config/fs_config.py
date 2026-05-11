@@ -26,11 +26,13 @@ def check_gpu() -> bool:
     except Exception:
         return False
 
+from pathlib import Path
+
 # ─── 경로 ────────────────────────────────────────────────────
-BASE_DIR        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TRAIN_PATH      = os.path.join(BASE_DIR, "data", "fs_sample_data", "fs_train.parquet")
-TEST_PATH       = os.path.join(BASE_DIR, "data", "fs_sample_data", "fs_validation.parquet")
-FEATURE_GROUP_PATH = os.path.join(BASE_DIR, "config", "feature_groups.json")
+BASE_DIR        = Path(__file__).parent.parent
+TRAIN_PATH      = str(BASE_DIR / "data" / "fs_sample_data" / "fs_train.parquet")
+TEST_PATH       = str(BASE_DIR / "data" / "fs_sample_data" / "fs_validation.parquet")
+FEATURE_GROUP_PATH = str(BASE_DIR / "config" / "feature_groups.json")
 
 
 # ─── 실험 모드 ───────────────────────────────────────────────

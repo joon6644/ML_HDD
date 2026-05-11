@@ -114,7 +114,7 @@
     - https://drive.google.com/file/d/1bXc2SSWI21UXGcuvpeJdyDZCgwyoXp-h/view?usp=sharing
 - val_tune_raw.parquet (검증1)
     - https://drive.google.com/file/d/1tk26QJyUT_PbjtPt2JENEsO24BgaS670/view?usp=sharing
-- val_calib_raw_parquet (검증2)
+- val_calib_raw.parquet (검증2)
     - https://drive.google.com/file/d/1wJTlQyk1Im89Qxi5l9lcxs8fPlfiONfh/view?usp=sharing
 - test_raw.parquet (테스트)
     - https://drive.google.com/file/d/1KcCDTXmx6PHILRLkMzGQx9zyTx4k6DzI/view?usp=sharing
@@ -127,19 +127,19 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 �
 
 - fs_sample_train.parquet
     - [https://drive.google.com/file/d/11fU3EnwZPIIWyDp-AYiPkxP8g59VIHOm/view?usp=sharing](https://drive.google.com/file/d/1-AReRkLyZIko11HDexNLfqakuXuQaaJ1/view?usp=sharing)
-- fs_sample_validation.parquet
+- fs_sample_test.parquet
     - [https://drive.google.com/file/d/1d5rcAzEOiiDwaq3v0w9O-2D2NQji58e3/view?usp=sharing](https://drive.google.com/file/d/1LRo5pJnb5svoN8fhZyhawon2kh-05FaE/view?usp=sharing)
 
 ---
 
 ### 1차 필터링 후 RFE 전용 데이터셋
 
-group 내부 중복 변수 제거한 결과물
+group 내부 고상관 특성을 필터링한 결과물
 
-- fs_train
-    - https://drive.google.com/file/d/1LjgwwRVbfmJ8gCxUieBly0QurWUCTT40/view?usp=sharing
-- fs_validation
-    - https://drive.google.com/file/d/1q5bYxni4-H0zU9NeHFCv0_dgIviZxG_p/view?usp=sharing
+- fs_train.parquet
+    - [https://drive.google.com/file/d/1LjgwwRVbfmJ8gCxUieBly0QurWUCTT40/view?usp=sharing](https://drive.google.com/file/d/1ryADNuOrGtR4bzV8Ha7mdm5xsyr7oegp/view?usp=sharing)
+- fs_test.parquet
+    - https://drive.google.com/file/d/13qsAKr9m1S9mH1rYwDchVnvtOItCCGAH/view?usp=sharing
 </aside>
 
 ---
@@ -165,7 +165,7 @@ group 내부 중복 변수 제거한 결과물
 
 - 중복 날짜가 있는지 확인함. (없음)
 - 디코딩 및 이상치 처리
-    - [smart_1_raw](https://www.notion.so/smart_1_raw-33814366e96b800cb943c3f8df0aca0e?pvs=21) , ‣  디코딩
+    - [smart_1_raw](https://www.notion.so/smart_1_raw-33814366e96b800cb943c3f8df0aca0e?pvs=21) , [smart_7_raw](https://www.notion.so/smart_7_raw-33814366e96b8043b155eeab57d40028?pvs=21)  디코딩
         
         <aside>
         
@@ -296,6 +296,7 @@ group 내부 중복 변수 제거한 결과물
     
 - 사이에 빈 시계열 행 생성
 - 일괄 Forward fill 적용
+- 2013~2014년의 특정 오류 배치 89대 개체 제거 (마지막 데이터가 2014-02-13 이기 때문에 후처리로 전부 삭제됨)
 
 <aside>
 
@@ -554,11 +555,11 @@ group 내부 중복 변수 제거한 결과물
 
 ## **5. 특성 선택**
 
-#### fs_sample_train, fs_sample_validation 파일 생성
+#### fs_sample_train, fs_sample_test 파일 생성
 
 ```markdown
 # RFE용 데이터셋 제작
-1. 고장 개체 비율 fs_sample_train 8 : fs_sample_validation 2
+1. 고장 개체 비율 fs_sample_train 8 : fs_sample_test 2
 2. serial_number 단위에서 failure 비율 유지하여 분할
 3. 학습 세트는 정상 행은 배정받은 개체 내부에서 랜덤시드를 사용하여 고장 행의 10배수 샘플링
 4. 테스트 세트는 정상 행은 배정받은 개체 내부에서 랜덤시드를 사용하여 고장 행의 100배수 샘플링
@@ -687,12 +688,6 @@ group 내부 중복 변수 제거한 결과물
             이 변수가 얼마나 고장을 뚜렷하게 변별하는가? 
             
     2. 해석 용이성 (고장을 설명하기 쉬운)
-- fs_train, fs_validation 파일 생성
-    
-    2. group 내부 중복 변수 제거한 결과물
-    
-    - fs_train: https://drive.google.com/file/d/1jmiCxsiclPmcWGkhgMKBH1d1HXCCzL4M/view?usp=sharing
-    - fs_validation: https://drive.google.com/file/d/1IrRT_ZYOP6RTwgWYEanD7zlboL8Rg27B/view?usp=sharing
 
 ### 3. 특성 선택
 
@@ -704,9 +699,9 @@ group 내부 중복 변수 제거한 결과물
 
 ## **6. 모델 훈련**
 
-최종 선택된 변수를 반영한 데이터셋 train.parquet을 제작
+최종 선택된 변수를 반영한 데이터셋을 제작
 
-### **1. 데이터 샘플링**
+### **1. 학습 데이터 샘플링**
 
 전체 학습 데이터(train.parquet)는 연산 효율 및 모델 다양성 확보를 위해 10개의 서로 다른 서브셋으로 분할된다.
 

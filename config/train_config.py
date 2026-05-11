@@ -10,7 +10,7 @@ from pathlib import Path
 #  경로 설정
 # ════════════════════════════════════════════════════════════
 
-_BASE = Path(r"C:\Workspace\06_ML_projdect\26_1_COIN")
+_BASE = Path(__file__).parent.parent
 
 # ── 입력 데이터 ──────────────────────────────────────────────
 # 1. 학습 데이터 (피처 선택용 샘플을 쓸 경우 fs_sample_data 하위 참조)

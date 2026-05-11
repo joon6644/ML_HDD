@@ -46,7 +46,7 @@ from src import fs_core
 
 # ── 출력 경로 ────────────────────────────────────────────────
 BASE_DIR    = os.path.join(os.path.dirname(__file__), "..")
-OUTPUT_CSV  = os.path.join(BASE_DIR, "scripts", "ablation_test_results.csv")
+OUTPUT_CSV  = os.path.join(BASE_DIR, "results", "feature_selection", "ablation_test_results.csv")
 
 # ── 파라미터 복사 (원본 건드리지 않음) ──────────────────────
 _PARAMS = {**LGBM_PARAMS}

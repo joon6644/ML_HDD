@@ -1,10 +1,21 @@
-# Data
-data/
+# Project Structure (Keep folders but ignore contents)
+/data/**/*
+!/data/**/.gitkeep
+/results/**/*
+!/results/**/.gitkeep
+/models/**/*
+!/models/**/.gitkeep
+
+# Ignore Data/Result files
 *.parquet
 *.csv
+*.xlsx
 *.zip
 *.7z
 *.sql
+*.log
+*.pkl
+*.joblib
 
 # Python
 venv/

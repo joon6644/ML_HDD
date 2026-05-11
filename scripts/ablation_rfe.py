@@ -29,7 +29,7 @@ def suppress_c_stderr():
         os.close(old_stderr)
         os.close(devnull_fd)
 
-OUTPUT_CSV  = r"scripts\ablation_rfe_results.csv"
+OUTPUT_CSV  = r"results\feature_selection\ablation_rfe_results.csv"
 
 # config 파라미터 가져오기
 _PARAMS = {**cfg.LGBM_PARAMS}

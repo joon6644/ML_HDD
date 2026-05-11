@@ -1,6 +1,7 @@
 import numpy as np
 import sys
-sys.path.insert(0, r'C:\Workspace\06_ML_projdect\26_1_COIN')
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.eval_core import ThresholdTuner, evaluate_row_level, EntityLevelEvaluator
 import pandas as pd
 import matplotlib

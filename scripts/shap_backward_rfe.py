@@ -48,7 +48,7 @@ from config.fs_config import LGBM_PARAMS, CV_N_SPLITS, SHAP_SAMPLE_N
 
 TRAIN_PATH  = r"data\fs_sample_data\fs_train.parquet"
 TEST_PATH   = r"data\fs_sample_data\fs_validation.parquet"
-OUTPUT_CSV  = r"scripts\shap_backward_fs_results.csv"
+OUTPUT_CSV  = r"results\feature_selection\shap_backward_fs_results.csv"
 
 N_FOLDS     = CV_N_SPLITS
 SHAP_SAMPLE = SHAP_SAMPLE_N
