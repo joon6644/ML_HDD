@@ -1,10 +1,16 @@
 # Project Structure (Keep folders but ignore contents)
-/data/**/*
+/data/**
+!/data/**/
 !/data/**/.gitkeep
-/results/**/*
+/results/**
+!/results/**/
 !/results/**/.gitkeep
-/models/**/*
+/models/**
+!/models/**/
 !/models/**/.gitkeep
+/logs/**
+!/logs/**/
+!/logs/**/.gitkeep
 
 # Ignore Data/Result files
 *.parquet
@@ -12,18 +18,31 @@
 *.xlsx
 *.zip
 *.7z
+*.tar.gz
+*.tgz
 *.sql
 *.log
 *.pkl
 *.joblib
+*.npy
+*.npz
+*.h5
+*.onnx
+*.json
+# Except config JSONs
+!/config/**/*.json
 
 # Python
 venv/
+.venv/
+env/
 __pycache__/
 *.py[cod]
 *$py.class
 .ipynb_checkpoints/
 *.ipynb_checkpoints
+.pytest_cache/
+.mypy_cache/
 
 # IDEs
 .vscode/
@@ -31,6 +50,8 @@ __pycache__/
 .project
 .pydevproject
 .settings/
+*.swp
+*.swo
 
 # OS
 .DS_Store
@@ -40,4 +61,4 @@ Thumbs.db
 .tmp/
 scratch/
 artifacts/
-logs/
+2024-09-09
