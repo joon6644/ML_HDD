@@ -4,7 +4,31 @@ train_config.py  ─  모델 학습 파이프라인 설정  (README §6)
 설정값을 여기서만 관리하고, train_core.py 에 cfg 로 넘김.
 """
 
+import numpy as np
+import lightgbm as lgb
 from pathlib import Path
+
+def check_gpu() -> bool:
+    """LightGBM GPU 사용 가능 여부 확인."""
+    try:
+        lgb.train(
+            {"device": "gpu", "verbose": -1},
+            lgb.Dataset(np.zeros((1, 1)), label=[0]),
+            num_boost_round=1,
+        )
+        return True
+    except Exception:
+        return False
+
+_HAS_GPU = check_gpu()
+print(f"🖥️  LightGBM GPU 가용성: {'[OK] 사용 가능' if _HAS_GPU else '[FAIL] 사용 불가 (CPU로 전환)'}")
+
+# ════════════════════════════════════════════════════════════
+#  기본 설정 (SEED)
+# ════════════════════════════════════════════════════════════
+
+SEED       = 42
+TARGET_COL = "failure"
 
 # ════════════════════════════════════════════════════════════
 #  경로 설정
@@ -14,21 +38,27 @@ _BASE = Path(__file__).parent.parent
 
 # ── 입력 데이터 ──────────────────────────────────────────────
 # 1. 학습 데이터 (피처 선택용 샘플을 쓸 경우 fs_sample_data 하위 참조)
-TRAIN_PATH    = str(_BASE / "data" / "split_group_stratified" / "train_raw.parquet")
+TRAIN_PATH    = str(_BASE / "data" / "split_group_stratified" / "train.parquet")
 # 2. 검증 및 테스트 데이터 (split_group_stratified 하위 참조)
-VAL_TUNE_PATH  = str(_BASE / "data" / "split_group_stratified" / "val_tune_raw.parquet")
-VAL_CALIB_PATH = str(_BASE / "data" / "split_group_stratified" / "val_calib_raw.parquet")
-TEST_PATH      = str(_BASE / "data" / "split_group_stratified" / "test_raw.parquet")
+VAL_TUNE_PATH  = str(_BASE / "data" / "split_group_stratified" / "val_tune.parquet")
+VAL_CALIB_PATH = str(_BASE / "data" / "split_group_stratified" / "val_calib.parquet")
+TEST_PATH      = str(_BASE / "data" / "split_group_stratified" / "test.parquet")
+
+# 3. 사전 분할된 서브셋 데이터 (SEED에 따라 동적 결정)
+SUBSET_DIR = str(_BASE / "data" / "train_subsets" / f"seed_{SEED}")
+
+# 4. 학습 효율을 위한 검증 데이터 샘플링 (None이면 전체 사용)
+# 800만 건 PR-AUC 계산 병목 해결을 위해 100만~200만 권장
+VAL_TUNE_SAMPLE_SIZE = 1_000_000
 
 # ── 출력 디렉토리 ────────────────────────────────────────────
 MODEL_SAVE_DIR = str(_BASE / "models" / "underbagging_ensemble")
 
-TARGET_COL = "failure"
-SEED       = 42
 
-# ── 사용할 피처 리스트 ────────────────────────────────────────
+# ════════════════════════════════════════════════════════════
+#  사용할 피처 리스트
+# ════════════════════════════════════════════════════════════
 # None 이면 train_core.run_training() 에서 메타 컬럼 제외 전체 사용
-# 특성 선택 완료 후 아래에 직접 채울 것
 FEATURE_COLS: list[str] | None = [
 "s187_days_since_first",
 "smart_184_raw",
@@ -96,6 +126,10 @@ LGBM_PARAMS = dict(
     scale_pos_weight  = 5.0,
     random_state      = SEED,
     n_jobs            = -1,
+    device            = "gpu" if _HAS_GPU else "cpu",
+    # ── [GPU 최적화] ──────────────────────────
+    max_bin           = 63,    # GPU 연산 및 메모리 효율 급상승
+    gpu_use_dp        = False, # 배정밀도 미사용 (속도 향상)
 )
 
 

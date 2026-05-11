@@ -16,7 +16,7 @@ import pandas as pd
 import shap
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
-from lightgbm import LGBMClassifier, early_stopping
+from lightgbm import LGBMClassifier
 from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold
 from sklearn.metrics import average_precision_score
 
