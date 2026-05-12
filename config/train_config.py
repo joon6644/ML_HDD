@@ -46,6 +46,7 @@ TEST_PATH      = str(_BASE / "data" / "split_group_stratified" / "test.parquet")
 
 # 3. 사전 분할된 서브셋 데이터 (SEED에 따라 동적 결정)
 SUBSET_DIR = str(_BASE / "data" / "train_subsets" / f"seed_{SEED}")
+VAL_TUNE_SAMPLED_PATH = str(Path(SUBSET_DIR) / "val_sampled.parquet")
 
 # 4. 학습 효율을 위한 검증 데이터 샘플링 (None이면 전체 사용)
 # 800만 건 PR-AUC 계산 병목 해결을 위해 100만~200만 권장

@@ -307,6 +307,9 @@ def run_training(
     df_train = [pd.read_parquet(f) for f in subset_files]
     df_val_tune = pd.read_parquet(cfg.VAL_TUNE_PATH)
 
+    print(f"  [Debug] Train Subsets: {len(df_train)} files")
+    print(f"  [Debug] Val Tune Rows: {len(df_val_tune):,}")
+
     # [검증 샘플링]
     _sample_size = getattr(cfg, "VAL_TUNE_SAMPLE_SIZE", None)
     if _sample_size and len(df_val_tune) > _sample_size:
