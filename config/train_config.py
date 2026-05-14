@@ -120,11 +120,11 @@ LGBM_PARAMS = dict(
     min_child_samples = 50,
     feature_fraction  = 0.8,
     bagging_fraction  = 0.8,
-    bagging_freq      = 5,
+    bagging_freq      = 1,     # underbagging 구조에서 추가 탐색 불필요
     lambda_l1         = 0.1,
     lambda_l2         = 0.1,
-    # 언더샘플링(10:1) 상태이므로 scale_pos_weight 는 낮게 시작
-    scale_pos_weight  = 5.0,
+    # scale_pos_weight 제거: underbagging 10:1 + near-failure weighting으로
+    # 데이터 레벨 imbalance 처리 완료. 추가 시 soft-voting 캘리브레이션 왜곡.
     random_state      = SEED,
     n_jobs            = -1,
     device            = "gpu" if _HAS_GPU else "cpu",
@@ -140,6 +140,8 @@ LGBM_PARAMS = dict(
 
 OPTUNA_N_TRIALS = 50         # 탐색 트라이얼 수
 OPTUNA_TIMEOUT  = None       # 초 단위 타임아웃. None = n_trials 로만 제한
+OPTUNA_DB_PATH  = "optuna_study.db"  # SQLite 저장 경로
+OPTUNA_STUDY_NAME = "hdd_failure_prediction" # Study 이름
 
 
 # ════════════════════════════════════════════════════════════
