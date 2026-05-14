@@ -205,22 +205,10 @@ def make_optuna_objective(
     device: str = "cpu",
     bounds: dict = None,
     tune_estimators: bool = False,
+    save_model_dir: str = None,
 ):
     if bounds is None:
-        # 기본 Stage 1 (Coarse) 탐색 범위
-        bounds = {
-            "learning_rate": (0.01, 0.1),
-            "max_depth": (4, 10),
-            "num_leaves": (16, 128),
-            "min_child_samples": (20, 100),
-            # feature_fraction: Noisy SMART + Correlated feature 환경에서 
-            # 앙상블 다양성을 주되, 부스팅 과정이 망가지지 않는 선(최소 절반)으로 하한 방어
-            "feature_fraction": (0.5, 1.0),
-            "bagging_fraction": (0.6, 1.0),
-            "lambda_l1": (1e-4, 1.0),
-            "lambda_l2": (1e-8, 10.0),
-            "n_estimators": (400, 800), # Stage 2에서만 사용됨
-        }
+        raise ValueError("❌ 'bounds' (탐색 범위)가 지정되지 않았습니다. cfg.OPTUNA_BOUNDS를 확인하세요.")
 
     def objective(trial):
         max_depth   = trial.suggest_int("max_depth", *bounds["max_depth"])
@@ -250,6 +238,14 @@ def make_optuna_objective(
         ens     = UnderbaggingEnsemble(trainer=trainer)
 
         result  = ens.fit(df_train, df_val_tune, feature_cols=feature_cols, target_col=target_col, trial=trial)
+        
+        if save_model_dir is not None:
+            import joblib
+            trial_dir = Path(save_model_dir) / f"trial_{trial.number}"
+            trial_dir.mkdir(parents=True, exist_ok=True)
+            for i, model in enumerate(result.models):
+                joblib.dump(model, trial_dir / f"model_{i}.pkl")
+                
         return result.val_tune_prauc
 
     return objective
@@ -312,18 +308,34 @@ def run_training(
         raise FileNotFoundError(f"❌ [Error] 사전 분할 데이터가 {subset_dir} 에 없습니다.")
 
     df_train = [pd.read_parquet(f) for f in subset_files]
-    df_val_tune_full = pd.read_parquet(cfg.VAL_TUNE_PATH)
+    val_tune_path = getattr(cfg, "VAL_TUNE_PATH", None)
+    if not val_tune_path or not Path(val_tune_path).exists():
+        raise FileNotFoundError(f"❌ [Error] 원본 검증셋(VAL_TUNE_PATH)이 없습니다. 리랭크 및 최종 검증에 필수적입니다.")
+    df_val_tune_full = pd.read_parquet(val_tune_path)
 
     print(f"  [Debug] Train Subsets: {len(df_train)} files")
     print(f"  [Debug] Val Tune (Full) Rows: {len(df_val_tune_full):,}")
 
-    # [검증 샘플링]
-    _sample_size = getattr(cfg, "VAL_TUNE_SAMPLE_SIZE", None)
-    if _sample_size and len(df_val_tune_full) > _sample_size:
-        df_val_optuna = df_val_tune_full.sample(_sample_size, random_state=cfg.SEED)
-        print(f"  [Debug] Val Tune (Sampled for Optuna) Rows: {len(df_val_optuna):,}")
+    # [검증 데이터 로드 (Optuna vs Single Run)]
+    sampled_path = getattr(cfg, "VAL_TUNE_SAMPLED_PATH", None)
+    
+    if run_optuna:
+        # Optuna 튜닝 모드: 분할(샘플링)된 검증셋 필수
+        if not sampled_path or not Path(sampled_path).exists():
+            raise FileNotFoundError("❌ [Error] Optuna 튜닝 모드(run_optuna=True)에서는 샘플링된 검증셋(VAL_TUNE_SAMPLED_PATH)이 필수입니다.")
+        df_val_optuna = pd.read_parquet(sampled_path)
+        print(f"  [Debug] Val Tune (Sampled for Optuna) loaded: {len(df_val_optuna):,} rows")
+        is_val_sampled = True
     else:
-        df_val_optuna = df_val_tune_full
+        # 단일 평가 모드 (Single Run): 노트북 설정에 따라 선택적 로드
+        if sampled_path and Path(sampled_path).exists():
+            df_val_optuna = pd.read_parquet(sampled_path)
+            print(f"  [Debug] Val Tune (Sampled for Single Run) loaded: {len(df_val_optuna):,} rows")
+            is_val_sampled = True
+        else:
+            df_val_optuna = df_val_tune_full
+            print(f"  [Debug] Val Tune (Full for Single Run) Rows: {len(df_val_optuna):,}")
+            is_val_sampled = False
 
     feats = feature_cols or getattr(cfg, "FEATURE_COLS", None)
     _device = cfg.LGBM_PARAMS.get("device", "cpu")
@@ -349,9 +361,12 @@ def run_training(
             load_if_exists=True,
         )
         
-        completed_s1 = len(study_s1.trials)
+        completed_s1 = len([t for t in study_s1.trials if t.state == optuna.trial.TrialState.COMPLETE])
         if completed_s1 < s1_trials:
-            obj_s1 = make_optuna_objective(df_train, df_val_optuna, feats, cfg.TARGET_COL, _device, tune_estimators=False)
+            obj_s1 = make_optuna_objective(
+                df_train, df_val_optuna, feats, cfg.TARGET_COL, _device, 
+                bounds=cfg.OPTUNA_BOUNDS, tune_estimators=False
+            )
             study_s1.optimize(obj_s1, n_trials=s1_trials - completed_s1, timeout=optuna_timeout)
         
         s1_best_params = study_s1.best_params
@@ -362,18 +377,7 @@ def run_training(
         s2_trials = optuna_n_trials - s1_trials
         study_s2_name = f"{base_study_name}_s2"
         
-        default_bounds = {
-            "learning_rate": (0.01, 0.1),
-            "max_depth": (4, 10),
-            "num_leaves": (16, 128),
-            "min_child_samples": (20, 100),
-            "feature_fraction": (0.6, 1.0),
-            "bagging_fraction": (0.6, 1.0),
-            "lambda_l1": (1e-4, 1.0),
-            "lambda_l2": (1e-8, 10.0),
-            "n_estimators": (400, 800),
-        }
-        narrowed_bounds = _narrow_bounds(s1_best_params, default_bounds)
+        narrowed_bounds = _narrow_bounds(s1_best_params, cfg.OPTUNA_BOUNDS)
         
         study_s2 = optuna.create_study(
             study_name=study_s2_name,
@@ -391,17 +395,29 @@ def run_training(
             study_s2.enqueue_trial(warm_params)
             print("  [Stage 2] Stage 1 Best 파라미터 웜스타트 주입 완료.")
             
-        completed_s2 = len(study_s2.trials)
+        optuna_temp_dir = Path(cfg.MODEL_SAVE_DIR).parent / "optuna_temp"
+        
+        completed_s2 = len([t for t in study_s2.trials if t.state == optuna.trial.TrialState.COMPLETE])
         if completed_s2 < s2_trials:
-            obj_s2 = make_optuna_objective(df_train, df_val_optuna, feats, cfg.TARGET_COL, _device, bounds=narrowed_bounds, tune_estimators=True)
+            obj_s2 = make_optuna_objective(
+                df_train, df_val_optuna, feats, cfg.TARGET_COL, _device, 
+                bounds=narrowed_bounds, tune_estimators=True, save_model_dir=str(optuna_temp_dir)
+            )
             study_s2.optimize(obj_s2, n_trials=s2_trials - completed_s2, timeout=optuna_timeout)
 
-        print(f"  [Stage 2] 완료. Best PR-AUC: {study_s2.best_value:.5f}")
+        try:
+            print(f"  [Stage 2] 완료. Best PR-AUC: {study_s2.best_value:.5f}")
+        except (ValueError, RuntimeError):
+            print("  [Stage 2] 완료. (완료된 트라이얼이 없어 최적값을 표시할 수 없습니다.)")
 
         # ─── Margin-based Reranking ───
-        if _sample_size and optuna_rerank_delta > 0:
+        if is_val_sampled and optuna_rerank_delta > 0:
             print(f"\n  [Rerank] Margin-based Reranking 시작 (Full Validation, 대상: Stage 2)")
-            df_trials = study_s2.trials_dataframe(states=(optuna.trial.TrialState.COMPLETE,))
+            
+            # 모든 트라이얼을 가져온 후 'COMPLETE' 상태인 것만 필터링 (버전 호환성 및 안정성 확보)
+            df_trials = study_s2.trials_dataframe()
+            if not df_trials.empty and 'state' in df_trials.columns:
+                df_trials = df_trials[df_trials['state'].astype(str).str.contains('COMPLETE')]
             
             if not df_trials.empty:
                 best_val = df_trials['value'].max()
@@ -414,18 +430,36 @@ def run_training(
                 best_rerank_score = -1.0
                 best_rerank_params = None
                 
+                import joblib
+                
                 for idx, row in candidates.iterrows():
+                    trial_number = row['number']
                     cand_params = {k.replace('params_', ''): v for k, v in row.items() if k.startswith('params_')}
                     
                     merged_params = cfg.LGBM_PARAMS.copy()
                     merged_params.update(cand_params)
                     
-                    trainer = SubsetTrainer(lgbm_params=merged_params, target_col=cfg.TARGET_COL)
-                    ens = UnderbaggingEnsemble(trainer=trainer)
-                    res = ens.fit(df_train, df_val_tune_full, feature_cols=feats, target_col=cfg.TARGET_COL)
+                    trial_dir = optuna_temp_dir / f"trial_{trial_number}"
                     
-                    score = res.val_tune_prauc
-                    print(f"    - Trial {row['number']}: Sampled PR-AUC = {row['value']:.5f} -> Full PR-AUC = {score:.5f}")
+                    if trial_dir.exists():
+                        # 저장된 모델 Reuse (Inference Only)
+                        models = []
+                        for i in range(len(df_train)):
+                            model_path = trial_dir / f"model_{i}.pkl"
+                            models.append(joblib.load(model_path))
+                        
+                        X_val = df_val_tune_full[feats]
+                        y_val = df_val_tune_full[cfg.TARGET_COL]
+                        probs = np.mean([m.predict_proba(X_val)[:, 1] for m in models], axis=0)
+                        score = average_precision_score(y_val, probs)
+                        print(f"    - Trial {trial_number} (Reuse): Sampled PR-AUC = {row['value']:.5f} -> Full PR-AUC = {score:.5f}")
+                    else:
+                        # 저장된 모델이 없으면 (예: Resume) Stochastic 재학습 Fallback
+                        trainer = SubsetTrainer(lgbm_params=merged_params, target_col=cfg.TARGET_COL)
+                        ens = UnderbaggingEnsemble(trainer=trainer)
+                        res = ens.fit(df_train, df_val_tune_full, feature_cols=feats, target_col=cfg.TARGET_COL)
+                        score = res.val_tune_prauc
+                        print(f"    - Trial {trial_number} (Retrain): Sampled PR-AUC = {row['value']:.5f} -> Full PR-AUC = {score:.5f}")
                     
                     if score > best_rerank_score:
                         best_rerank_score = score

@@ -6,8 +6,8 @@ from pathlib import Path
 _BASE = Path(__file__).parent.parent
 
 # ── 입력 경로 ────────────────────────────────────────────────
-VAL_CALIB_PATH = str(_BASE / "data" / "split_group_stratified" / "val_calib_raw.parquet")
-TEST_PATH      = str(_BASE / "data" / "split_group_stratified" / "test_raw.parquet")
+VAL_CALIB_PATH = str(_BASE / "data" / "03_data_splitting" / "val_calib_raw.parquet")
+TEST_PATH      = str(_BASE / "data" / "03_data_splitting" / "test_raw.parquet")
 
 # ── 컬럼명 ───────────────────────────────────────────────────
 TARGET_COL = "failure"

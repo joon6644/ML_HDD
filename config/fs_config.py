@@ -30,9 +30,9 @@ from pathlib import Path
 
 # ─── 경로 ────────────────────────────────────────────────────
 BASE_DIR        = Path(__file__).parent.parent
-TRAIN_PATH      = str(BASE_DIR / "data" / "fs_sample_data" / "fs_train.parquet")
-TEST_PATH       = str(BASE_DIR / "data" / "fs_sample_data" / "fs_validation.parquet")
-FEATURE_GROUP_PATH = str(BASE_DIR / "config" / "feature_groups.json")
+TRAIN_PATH      = str(BASE_DIR / "data" / "05_feature_selection" / "fs_train.parquet")
+TEST_PATH       = str(BASE_DIR / "data" / "05_feature_selection" / "fs_validation.parquet")
+FEATURE_GROUP_PATH = str(BASE_DIR / "config" / "json" / "feature_groups.json")
 
 
 # ─── 실험 모드 ───────────────────────────────────────────────

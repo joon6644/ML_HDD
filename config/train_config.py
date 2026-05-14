@@ -38,14 +38,14 @@ _BASE = Path(__file__).parent.parent
 
 # ── 입력 데이터 ──────────────────────────────────────────────
 # 1. 학습 데이터 (피처 선택용 샘플을 쓸 경우 fs_sample_data 하위 참조)
-TRAIN_PATH    = str(_BASE / "data" / "split_group_stratified" / "train.parquet")
-# 2. 검증 및 테스트 데이터 (split_group_stratified 하위 참조)
-VAL_TUNE_PATH  = str(_BASE / "data" / "split_group_stratified" / "val_tune.parquet")
-VAL_CALIB_PATH = str(_BASE / "data" / "split_group_stratified" / "val_calib.parquet")
-TEST_PATH      = str(_BASE / "data" / "split_group_stratified" / "test.parquet")
+TRAIN_PATH    = str(_BASE / "data" / "06a_feature_engineering" / "train.parquet")
+# 2. 검증 및 테스트 데이터 (06a_feature_engineering 하위 참조)
+VAL_TUNE_PATH  = str(_BASE / "data" / "06a_feature_engineering" / "val_tune.parquet")
+VAL_CALIB_PATH = str(_BASE / "data" / "06a_feature_engineering" / "val_calib.parquet")
+TEST_PATH      = str(_BASE / "data" / "06a_feature_engineering" / "test.parquet")
 
 # 3. 사전 분할된 서브셋 데이터 (SEED에 따라 동적 결정)
-SUBSET_DIR = str(_BASE / "data" / "train_subsets" / f"seed_{SEED}")
+SUBSET_DIR = str(_BASE / "data" / "06b_subset_generation" / f"seed_{SEED}")
 VAL_TUNE_SAMPLED_PATH = str(Path(SUBSET_DIR) / "val_sampled.parquet")
 
 # 4. 학습 효율을 위한 검증 데이터 샘플링 (None이면 전체 사용)
@@ -142,6 +142,20 @@ OPTUNA_N_TRIALS = 50         # 탐색 트라이얼 수
 OPTUNA_TIMEOUT  = None       # 초 단위 타임아웃. None = n_trials 로만 제한
 OPTUNA_DB_PATH  = "optuna_study.db"  # SQLite 저장 경로
 OPTUNA_STUDY_NAME = "hdd_failure_prediction" # Study 이름
+
+# Optuna Stage 1 탐색 범위 (Coarse Search)
+OPTUNA_BOUNDS = {
+    "learning_rate": (0.01, 0.1),
+    "max_depth": (4, 10),
+    "num_leaves": (16, 128),
+    "min_child_samples": (20, 100),
+    # feature_fraction: 앙상블 다양성을 주되 하한(0.5) 방어
+    "feature_fraction": (0.5, 1.0),
+    "bagging_fraction": (0.6, 1.0),
+    "lambda_l1": (1e-4, 1.0),
+    "lambda_l2": (1e-8, 10.0),
+    "n_estimators": (400, 800), # Stage 2에서 가변적으로 사용
+}
 
 
 # ════════════════════════════════════════════════════════════

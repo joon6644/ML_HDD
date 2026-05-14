@@ -150,8 +150,8 @@ def run_pipeline(train_path: str, test_path: str, features: list):
 # =====================================================================
 if __name__ == "__main__":
     # 1. 파일 경로 설정
-    TRAIN_PATH = "./data/fs_sample_data/fs_train.parquet"
-    VAL_PATH   = "./data/fs_sample_data/fs_validation.parquet"
+    TRAIN_PATH = "./data/05_feature_selection/fs_train.parquet"
+    VAL_PATH   = "./data/05_feature_selection/fs_validation.parquet"
 
     # 2. 특성 넣기
     my_features = [
