@@ -2,13 +2,16 @@
 train_core.py  ─  모델 학습 파이프라인 엔진  (README §6)
 ──────────────────────────────────────────────────────────
 구조:
-  1. AsymmetricSampler  : 10-subset 비대칭 언더배깅 샘플링
-                          + near-failure importance sampling
-  2. SubsetTrainer      : 서브셋 단일 LightGBM 학습 (검증 생략 모드)
-  3. UnderbaggingEnsemble : 10개 모델 soft-voting 앙상블
-  4. OptunaObjective    : Optuna 목적 함수 (VAL PR-AUC 최대화)
-  5. run_training       : 노트북에서 한 셀로 호출하는 메인 함수
-  6. Visualization      : 혼동행렬, PR-AUC 등 시각화 함수
+  1. SubsetTrainer      : 서브셋 단일 LightGBM 학습 (검증 생략 모드)
+  2. UnderbaggingEnsemble : 사전 분할된 서브셋 리스트로 soft-voting 앙상블
+  3. OptunaObjective    : Optuna 목적 함수 (VAL PR-AUC 최대화)
+  4. run_training       : 노트북에서 한 셀로 호출하는 메인 함수
+  5. Visualization      : 혼동행렬, PR-AUC 등 시각화 함수
+
+참고:
+  데이터셋 분할(AsymmetricSampler)은 src/data_splitter.py 에서 담당.
+  notebooks/19_data_preprocessing_subsets.ipynb 에서 서브셋을 미리 생성한 뒤
+  이 모듈은 저장된 parquet 파일만 로드하여 학습에 사용함.
 """
 
 from __future__ import annotations
@@ -69,66 +72,7 @@ class EnsembleResult:
 
 
 # ════════════════════════════════════════════════════════════
-#  1. ASYMMETRIC SAMPLER (README §6.1)
-# ════════════════════════════════════════════════════════════
-
-class AsymmetricSampler:
-    """
-    고장 데이터(Positive)는 모두 사용하고, 정상 데이터(Negative)는
-    여러 개의 서브셋으로 나누어 언더샘플링을 수행함.
-    고장 임박 데이터(near-failure)에 더 높은 샘플링 가중치를 부여.
-    """
-
-    def __init__(
-        self,
-        n_subsets: int = 10,
-        neg_ratio: float = 10.0,
-        near_window: int = 30,
-        near_weight: float = 3.0,
-        seed: int = 42,
-    ):
-        self.n_subsets = n_subsets
-        self.neg_ratio = neg_ratio
-        self.near_window = near_window
-        self.near_weight = near_weight
-        self.seed = seed
-
-    def _build_near_failure_weights(self, df_neg: pd.DataFrame, target_col: str) -> np.ndarray:
-        """정상 데이터 내에서 고장 임박 데이터에 높은 가중치 부여."""
-        weights = np.ones(len(df_neg))
-        if "days_to_failure" in df_neg.columns:
-            dtf = df_neg["days_to_failure"].values
-            near_mask = (dtf >= 1) & (dtf <= self.near_window)
-            weights[near_mask] = self.near_weight
-        return weights / weights.sum()
-
-    def split(self, df: pd.DataFrame, target_col: str = "failure") -> list[pd.DataFrame]:
-        """전체 데이터를 n_subsets 개의 언더샘플링된 서브셋으로 분할."""
-        df_pos = df[df[target_col] == 1].copy()
-        df_neg = df[df[target_col] == 0].copy()
-
-        n_pos = len(df_pos)
-        n_neg_per_subset = int(n_pos * self.neg_ratio)
-
-        neg_weights = self._build_near_failure_weights(df_neg, target_col)
-        rng = np.random.default_rng(self.seed)
-
-        subsets = []
-        for i in range(self.n_subsets):
-            selected_neg_idx = rng.choice(
-                df_neg.index,
-                size=min(n_neg_per_subset, len(df_neg)),
-                replace=False,
-                p=neg_weights,
-            )
-            df_sub = pd.concat([df_pos, df_neg.loc[selected_neg_idx]]).sample(frac=1, random_state=self.seed + i)
-            subsets.append(df_sub)
-
-        return subsets
-
-
-# ════════════════════════════════════════════════════════════
-#  2. SUBSET TRAINER
+#  1. SUBSET TRAINER
 # ════════════════════════════════════════════════════════════
 
 class SubsetTrainer:
@@ -171,27 +115,30 @@ class SubsetTrainer:
 # ════════════════════════════════════════════════════════════
 
 class UnderbaggingEnsemble:
-    """비대칭 언더배깅 앙상블 (학습 후 일괄 검증 방식)."""
+    """비대칭 언더배깅 앙상블 (학습 후 일괄 검증 방식).
 
-    def __init__(self, sampler: AsymmetricSampler, trainer: SubsetTrainer):
-        self.sampler = sampler
+    학습 데이터는 notebooks/19_data_preprocessing_subsets.ipynb 에서
+    사전 분할된 list[pd.DataFrame] 형태로 전달받음.
+    """
+
+    def __init__(self, trainer: SubsetTrainer):
         self.trainer = trainer
         self._result: Optional[EnsembleResult] = None
 
     def fit(
         self,
-        df_train: pd.DataFrame | list[pd.DataFrame],
+        df_train: list[pd.DataFrame],
         df_val_tune: pd.DataFrame,
         feature_cols: Optional[list[str]] = None,
         target_col: str = "failure",
     ) -> EnsembleResult:
-        """전체 앙상블 학습."""
-        # 1) 서브셋 분할 (파일이 있으면 로드된 리스트 사용)
-        if isinstance(df_train, list):
-            subsets = df_train
-            print(f"✅  [Ensemble] 사전 분할된 {len(subsets)}개 서브셋 사용.")
-        else:
-            subsets = self.sampler.split(df_train, target_col=target_col)
+        """전체 앙상블 학습. df_train 은 사전 분할된 서브셋 리스트."""
+        # 1) 서브셋 확인
+        if not isinstance(df_train, list):
+            raise TypeError("df_train 은 list[pd.DataFrame] 이어야 합니다. "
+                            "서브셋 분할은 data_splitter.py 의 AsymmetricSampler 를 사용하세요.")
+        subsets = df_train
+        print(f"✅  [Ensemble] 사전 분할된 {len(subsets)}개 서브셋 사용.")
 
         # 2) 각 서브셋 학습 (순수 학습만 수행)
         subset_results: list[SubsetResult] = []
@@ -249,10 +196,9 @@ class UnderbaggingEnsemble:
 # ════════════════════════════════════════════════════════════
 
 def make_optuna_objective(
-    df_train: pd.DataFrame | list[pd.DataFrame],
+    df_train: list[pd.DataFrame],
     df_val_tune: pd.DataFrame,
     feature_cols: list[str],
-    sampler_kwargs: dict,
     target_col: str = "failure",
     device: str = "cpu",
 ):
@@ -274,10 +220,9 @@ def make_optuna_objective(
             "random_state": 42,
             "max_bin": 63,
         }
-        
-        sampler = AsymmetricSampler(**sampler_kwargs)
+
         trainer = SubsetTrainer(lgbm_params=params, target_col=target_col)
-        ens     = UnderbaggingEnsemble(sampler=sampler, trainer=trainer)
+        ens     = UnderbaggingEnsemble(trainer=trainer)
 
         result  = ens.fit(df_train, df_val_tune, feature_cols=feature_cols, target_col=target_col)
         return result.val_tune_prauc
@@ -322,15 +267,14 @@ def run_training(
     best_params = cfg.LGBM_PARAMS.copy()
     if run_optuna:
         import optuna
-        obj = make_optuna_objective(df_train, df_val_tune, feats, cfg.SAMPLER_KWARGS, cfg.TARGET_COL, _device)
+        obj = make_optuna_objective(df_train, df_val_tune, feats, cfg.TARGET_COL, _device)
         study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=cfg.SEED))
         study.optimize(obj, n_trials=optuna_n_trials, timeout=optuna_timeout)
         best_params.update(study.best_params)
 
     # [최종 학습]
-    sampler = AsymmetricSampler(**cfg.SAMPLER_KWARGS)
     trainer = SubsetTrainer(lgbm_params=best_params, target_col=cfg.TARGET_COL)
-    ens     = UnderbaggingEnsemble(sampler=sampler, trainer=trainer)
+    ens     = UnderbaggingEnsemble(trainer=trainer)
     result = ens.fit(df_train, df_val_tune, feature_cols=feats, target_col=cfg.TARGET_COL)
 
     return {"ensemble_result": result, "best_params": best_params, "feature_cols": feats}

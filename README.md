@@ -701,26 +701,64 @@ group 내부 고상관 특성을 필터링한 결과물
 
 최종 선택된 변수를 반영한 데이터셋을 제작
 
-### **1. 학습 데이터 샘플링**
+### 1. 데이터 샘플링
 
-전체 학습 데이터(train.parquet)는 연산 효율 및 모델 다양성 확보를 위해 10개의 서로 다른 서브셋으로 분할된다.
+### 학습 데이터 샘플링
 
-- 모든 failure sample은 100% 포함
+전체 학습 데이터(train.parquet)는 연산 효율성과 앙상블 다양성 확보를 위해
+10개의 서로 다른 언더샘플링 서브셋으로 분할하였다.
+
+- 모든 failure sample은 각 서브셋에 100% 포함
 - normal sample은 비복원 추출 기반으로 10:1 비율 유지
-- 각 서브셋 구성:
+- 각 서브셋 구성
     - failure: 33,984
     - normal: 339,840
     - total: 373,824
-- 전체 ensemble:
+- 전체 ensemble
     - 10 subsets → 총 3,738,240 samples
 
-### **Near-failure importance sampling**
+---
 
-failure 직전 구간의 정보 손실을 줄이기 위해 time-to-failure 기반 가중 샘플링을 적용한다.
+### Near-failure Importance Sampling
 
-- failure 이전 일정 구간(예: 10~50 days)을 중요 구간으로 정의
-- 해당 구간의 샘플링 확률을 증가시키고
-- distant normal samples는 상대적으로 낮은 확률로 선택
+고장 직전 구간의 정보 손실을 줄이기 위해
+time-to-failure 기반 importance sampling을 적용하였다.
+
+- failure 이전 일정 구간
+    - failure: D-1 ~ D-10
+    - near-failure: D-11 ~ D-30
+- 해당 구간의 샘플링 확률을 3배 증가
+
+이를 통해 정상 상태와 명확히 구분되지 않는   
+
+고장 직전 패턴이 학습 과정에서 충분히 반영되도록 하였다.
+
+> **인용 포인트:** *Learning from Imbalanced Data* (He & Garcia, 2009) 논문을 보면, "결정 경계(Decision Boundary) 근처에 있는 다수 클래스 샘플(Borderline majority examples)을 보존하는 것이 모델의 판별력을 극대화한다"고 되어 있습니다.
+> 
+
+---
+
+### 검증 데이터 샘플링
+
+전체 검증 데이터에 대한 반복 평가 과정은
+하이퍼파라미터 탐색 시 주요 연산 병목으로 작용하였다.
+
+따라서 Optuna 기반 튜닝 단계에서는
+검증셋에 대해 별도의 언더샘플링을 적용하였다.
+
+튜닝 단계의 목적은 절대적인 성능 추정이 아니라
+모델 간 상대적 성능 비교의 안정적 수행에 있으므로,
+실제 분포를 일부 압축한 검증셋을 사용하는 것은 타당하다고 판단하였다.
+
+- 모든 failure sample 유지
+- normal sample만 추가 샘플링 수행
+- 최종 검증 비율은 약 100:1 유지
+- near-failure 구간에 대해서는 학습 데이터와 동일하게 3배 importance sampling 적용
+
+| 튜닝전 | 노트북 학습 & 검증 시간 | 데스크탑 학습 & 검증 시간 | PR-AUC |
+| --- | --- | --- | --- |
+| 전체 검증 데이터 | 2~30분 예상 | 3m 28.6s | 0.11249 (1:1426.4 불균형, 0.0007 대비 160배 뛰어남) |
+| 검증 데이터 100:1 샘플링 | 8m 8.8s | 1m 11.4s | 0.40907 (100:1 불균형, 0.01 대비 41배 뛰어남) |
 
 ---
 
@@ -729,7 +767,7 @@ failure 직전 구간의 정보 손실을 줄이기 위해 time-to-failure 기�
 각 서브셋에 대해 개별 LightGBM 모델을 학습하고, 다음과 같은 ensemble을 구성한다.
 
 - 모델: LightGBM
-- 방식: asymmetric underbagging ensemble
+- 방식: Asymmetric UnderBagging (비대칭 언더배깅)
 
 각 모델은 서로 다른 정상 데이터 샘플링을 기반으로 학습되므로 diversity를 확보한다.
 
