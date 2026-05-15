@@ -165,7 +165,7 @@ group 내부 고상관 특성을 필터링한 결과물
 
 - 중복 날짜가 있는지 확인함. (없음)
 - 디코딩 및 이상치 처리
-    - [smart_1_raw](https://www.notion.so/smart_1_raw-33814366e96b800cb943c3f8df0aca0e?pvs=21) , [smart_7_raw](https://www.notion.so/smart_7_raw-33814366e96b8043b155eeab57d40028?pvs=21)  디코딩
+    - [smart_1_raw](https://www.notion.so/smart_1_raw-33814366e96b800cb943c3f8df0aca0e?pvs=21) , ‣  디코딩
         
         <aside>
         
@@ -697,11 +697,136 @@ group 내부 고상관 특성을 필터링한 결과물
 
 ---
 
-## **6. 모델 훈련**
+## **6. 하이퍼파라미터 최적화**
 
 최종 선택된 변수를 반영한 데이터셋을 제작
 
-### 1. 데이터 샘플링
+### 방법론
+
+- 모델: LightGBM
+- 방식: UnderBagging Ensemble (언더배깅 앙상블)
+    
+    <aside>
+    
+    ### 용어 설명
+    
+    - 배깅(Bagging): 붓스트랩(Bootstrap)으로 뽑아서 + 앙상블한다.
+        
+        → 붓스트랩은 복원 추출을 전제로 함. 우리는 비복원추출이니 엄밀한 의미의  배깅과는 차이가 있음.
+        
+        → 다만 용어 자체가 유명해서 비교적 느슨하게 사용되긴 함.
+        
+    - 언더배깅(Underbagging): 다수 클래스를 언더샘플링하여 여러 서브셋 구성 + 앙상블
+        
+        → 소수 클래스는 유지하고, 다수 클래스만 부분적으로 추출함
+        
+        → 극단적 불균형 환경에서 계산량을 줄이며 성능을 개선할 수 있음.
+        
+    - 우리는 언더배깅을 기반으로 두고 샘플링 전략을 커스텀한 방식에 가까움.
+        - 논문에서는 언더배깅 앙상블이라고 명명하고 구현 전략을 구체적으로 설명하는 쪽이 나을듯
+    </aside>
+    
+
+<aside>
+
+### 사용된 데이터 설명
+
+full train: 학습을 위한 10개의 서브셋을 만들고 더 이상 사용되지 않음.
+
+- 10개의 Subset:  앙상블 학습을 위한 경량 데이터셋
+    - 모든 고장 데이터 + 10배수로 추출된 정상 데이터(near-failure에 샘플링 가중치 부여)
+
+full validation: Optuna 루프에서는 미사용, 최종 선택 (rerank), 최종 검증 과정에서 사용됨
+
+- sampled validation: 옵튜나 내부에서 사용되는 경량 데이터셋
+    - 모든 고장 데이터 + 100배수로 추출된 정상 데이터(near-failure에 샘플링 가중치 부여)
+</aside>
+
+### [Optuna Stage 1]
+
+- 대략적인 범위를 넓게 탐색함.
+- 튜닝하기 까다로운 n_estimators를 400으로 고정하고 진행함.
+
+```markdown
+1. 10개의 subset을 순차적으로 학습함
+
+2. 각 subset 학습 직후:
+    - sampled validation을 예측하고
+    - 현재까지의 누적 ensemble PR-AUC 계산
+    
+3. 중간 PR-AUC를 Optuna에 리포트함:
+    - 내부적으로 이전 trial 성능과 비교하여
+    - 가지치기(pruning) 진행
+    - 남은 subset 학습 중단하고 다음 trial 진행
+    
+4. pruning 되지 않은 경우
+    → Optuna에 최종 ensemble PR-AUC 반환
+    
+5. Optuna(TPE)가 내부적으로 다음 하이퍼파라미터 후보를 생성함
+    - 베이지안 최적화 기반
+    - 이를 반복함
+```
+
+---
+
+### [Optuna Stage 2]
+
+- [Optuna Stage 1]의 결과를 바탕으로 좋은 영역의 주변을 정밀하게 탐색
+- n_estimators 해방
+- warm-start enqueue → 좋은 지점부터 시작
+- pruning 비활성화 → 이미 좋은 후보군만 탐색하기 때문에 가지치기가 방해가 될 수 있음
+
+```markdown
+1. [Optuna Stage 1] best parameter를 첫 trial로 주입
+
+2. 좁혀진 탐색 공간에서 추가 탐색 수행
+
+3. 모든 trial 완주 후 sampled validation 기준 점수를 정렬
+```
+
+---
+
+### [Reranking]
+
+- sampled validation을 사용했을 때의 리스크를 최소화하기 위한 재평가 단계
+- full validation 기준 최종 선택
+
+```markdown
+1. [Optuna Stage 2]의 결과 중 best parameter이 될 수 있는 후보 선택 (마진? 분포 확인? 미정)
+
+2. 저장된 ensemble 모델 재사용 (없으면 학습)
+
+3. full validation을 예측하여 PR-AUC 계산
+
+4. 이를 기준으로 최종 하이퍼파라미터 선택
+```
+
+---
+
+### [Final Training]
+
+- 최종 선택된 하이퍼파라미터로 전체 앙상블 재학습 수행
+- full validation 기준 최종 성능 확인
+- 모델 및 파라미터 저장
+- 탐색 공간
+    
+    
+    | **Parameter** | **Type** | **Range** | **Log Scale** | **Rationale (설계 논리)** |
+    | --- | --- | --- | --- | --- |
+    | **`learning_rate`** | Float | `0.01 ~ 0.1` | **Yes** | 트리 개수(`n_estimators=400`)가 고정된 상태에서 수렴 속도를 맞추기 위해 넓은 로그 스케일로 탐색합니다. |
+    | **`max_depth`** | Int | `4 ~ 10` | No | 과적합 방지를 위한 1차 방어선입니다. SMART 데이터의 노이즈 특성상 10을 초과하는 깊이는 유의미한 패턴보다 노이즈를 외울 확률이 높습니다. |
+    | **`num_leaves`** | Int | `16 ~ 128` | No | 과적합 방지를 위한 2차 방어선입니다. 무의미한 탐색(예: depth=4인데 leaves=100)을 막기 위해, 실제 코드에서는 `min(2^max_depth, 128)`로 **동적 상한(Conditional Bound)**을 걸어 공간 낭비를 제거했습니다. |
+    | **`min_child_samples`** | Int | `20 ~ 100` | No | 불균형 데이터에서 리프 노드가 극소수의 Positive 샘플에 과적합되는 것을 막는 최소한의 허들입니다. |
+    | **`feature_fraction`** | Float | `0.5 ~ 1.0` | No | **(핵심)** Correlated SMART Feature 환경에서 트리가 특정 강한 노이즈 피처에 종속되는 것을 막고, 각 트리의 Subspace Sampling을 강화하여 **앙상블(Tree-level) 다양성을 증가시킴**. 단, 부스팅 과정 파괴를 막기 위해 마지노선(0.5)을 방어합니다. |
+    | **`bagging_fraction`** | Float | `0.6 ~ 1.0` | No | 이미 외부에서 10:1 Underbagging 앙상블이 적용되어 있으므로, 내부의 Row-sampling은 중간 수준(0.6) 이상으로 유지하여 학습 데이터 손실을 막습니다. |
+    | **`lambda_l1`** | Float | `1e-4 ~ 1.0` | **Yes** | L1 규제. 불필요한 split 사용을 억제하여 noisy feature 의존을 완화 |
+    | **`lambda_l2`** | Float | `1e-8 ~ 10.0` | **Yes** | L2 규제. 잎사귀(Leaf)의 출력값을 부드럽게 눌러주어 leaf output의 과도한 진폭을 완화하는 방향으로 작용 |
+    | **`bagging_freq`** | Int | **`1` (고정)** | - | Underbagging 체제이므로 항상 bagging이 켜져 있는 상태를 유지합니다. |
+    | **`n_estimators`** | Int | **`400 ~ 800` (1차에서는 400으로 고정)** | - | Stage 1 에서는 빠른 파라미터 영역 필터링(Coarse Screening)과 파라미터 간 n_estimators 변동에 따른 탐색 노이즈를 줄이기 위해 고정 |
+
+---
+
+### 데이터 샘플링 심화
 
 ### 학습 데이터 샘플링
 
@@ -733,7 +858,7 @@ time-to-failure 기반 importance sampling을 적용하였다.
 
 고장 직전 패턴이 학습 과정에서 충분히 반영되도록 하였다.
 
-> **인용 포인트:** *Learning from Imbalanced Data* (He & Garcia, 2009) 논문을 보면, "결정 경계(Decision Boundary) 근처에 있는 다수 클래스 샘플(Borderline majority examples)을 보존하는 것이 모델의 판별력을 극대화한다"고 되어 있습니다.
+> **인용 포인트:** *Learning from Imbalanced Data* (He & Garcia, 2009) 논문을 보면, "결정 경계(Decision Boundary) 근처에 있는 다수 클래스 샘플(Borderline majority examples)을 보존하는 것이 모델의 판별 성능 향상에 기여할 수 있다고 보고하였다."고 되어 있습니다.
 > 
 
 ---
@@ -755,60 +880,9 @@ time-to-failure 기반 importance sampling을 적용하였다.
 - 최종 검증 비율은 약 100:1 유지
 - near-failure 구간에 대해서는 학습 데이터와 동일하게 3배 importance sampling 적용
 
-| 튜닝전 | 노트북 학습 & 검증 시간 | 데스크탑 학습 & 검증 시간 | PR-AUC |
-| --- | --- | --- | --- |
-| 전체 검증 데이터 | 2~30분 예상 | 3m 28.6s | 0.11249 (1:1426.4 불균형, 0.0007 대비 160배 뛰어남) |
-| 검증 데이터 100:1 샘플링 | 8m 8.8s | 1m 11.4s | 0.40907 (100:1 불균형, 0.01 대비 41배 뛰어남) |
-
 ---
 
-### 2. 모델 학습
-
-각 서브셋에 대해 개별 LightGBM 모델을 학습하고, 다음과 같은 ensemble을 구성한다.
-
-- 모델: LightGBM
-- 방식: Asymmetric UnderBagging (비대칭 언더배깅)
-
-각 모델은 서로 다른 정상 데이터 샘플링을 기반으로 학습되므로 diversity를 확보한다.
-
----
-
-### 3. 앙상블
-
-각 서브셋 모델은 동일한 validation set(실제 분포 1405:1)을 예측하며,
-
-최종 예측값은 다음과 같이 계산된다:
-
-- soft voting 방식 (probability averaging)
-
-$$
-\hat{p} = \frac{1}{K} \sum_{k=1}^{K} p_k
-$$
-
----
-
-### 4. 평가와 하이퍼파라미터 튜닝
-
-모델 성능 평가는 다음 기준으로 수행된다:
-
-- subset-based asymmetric underbagging ensemble
-- **VAL PR-AUC**: 실제 운영 환경 분포 (1:1405)에서의 성능
-    - 현실 세계에서의 일반화 성능 측정 기준임
-
-### 최적화 방법
-
-Hyperparameter tuning은 Optuna를 사용하여 수행하며, 목적 함수는 다음과 같다:
-
-- maximize: VAL PR-AUC
-
-추가적으로 다음 조건을 고려한다:
-
-- subset 간 성능 괴리 최소화
-- threshold-independent metric(PR-AUC) 사용
-
----
-
-### 5. 언더샘플링의 근거
+### (참고) 언더샘플링의 근거
 
 정상 클래스는 다음 특성을 가진다:
 
@@ -829,6 +903,22 @@ Hyperparameter tuning은 Optuna를 사용하여 수행하며, 목적 함수는 �
 
 ---
 
+### 성능 비교
+
+검증셋의 불균형이 다르기 때문에 직접적인 PR-AUC 비교는 불가능함.
+
+| 튜닝 전 | 노트북 학습 & 검증 시간 | 데스크탑 학습 & 검증 시간 | PR-AUC |
+| --- | --- | --- | --- |
+| full validation (1:1426.4 불균형) | 2~30분 예상 | 3m 28.6s | 0.11249 |
+| sampled validation (100:1 불균형) | 8m 8.8s | 1m 11.4s | 0.40907  |
+
+| 튜닝 후 | PR-AUC | std |
+| --- | --- | --- |
+| full validation (1:1426.4 불균형) |  |  |
+| sampled validation (100:1 불균형) |  |  |
+
+---
+
 ## 7. 임계값 튜닝
 
 제약 조건 최적화
@@ -836,13 +926,23 @@ Hyperparameter tuning은 Optuna를 사용하여 수행하며, 목적 함수는 �
 <aside>
 
 1. val_calib.parquet로 임계점 그리드서치
-2. FPR 상한 설정
-3. FPR 범위 안에서 Recall 최대화 지점 선택
+2. FPR과 Recall 의 관계를 그래프로 그림 (x: FPR, y: Recall(TPR))
+3. 적절한 지점을 도출함
 
-FPR 1%에서 Recall 00%라는 문장을 뽑아야 함. 
+FPR n%에서 Recall nn%라는 문장을 뽑아야 함. (우리 연구의 간판)
 
 → 허용한 오탐율 내에서 탐지 성능을 최대화한 운영점
 
+</aside>
+
+<aside>
+
+| FPR | Recall |
+| --- | --- |
+| 0.1% | xx% |
+| 0.5% | xx% |
+| 1.0% | xx% |
+| 5.0% | xx% |
 </aside>
 
 ---

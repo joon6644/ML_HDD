@@ -134,21 +134,37 @@ class UnderbaggingEnsemble:
         trial: Optional[optuna.Trial] = None,
     ) -> EnsembleResult:
         subsets = df_train_list
-        print(f"✅  [Ensemble] 사전 분할된 {len(subsets)}개 서브셋 사용.")
 
         feats = feature_cols or [
             c for c in df_val_tune.columns
             if c not in {"serial_number", "date", "days_to_failure", target_col}
         ]
+
+        # 🔴 Feature Schema Validation 추가 (결측 컬럼 검증)
+        missing_val = set(feats) - set(df_val_tune.columns)
+        if missing_val:
+            raise ValueError(f"❌ [Error] 검증 데이터(val_tune)에 다음 특성이 누락되어 있습니다: {missing_val}")
+            
+        for i, sub in enumerate(subsets):
+            missing_sub = set(feats) - set(sub.columns)
+            if missing_sub:
+                raise ValueError(f"❌ [Error] 훈련 서브셋 {i} 에 다음 특성이 누락되어 있습니다: {missing_sub}")
+
         X_val = df_val_tune[feats]
         y_val = df_val_tune[target_col]
 
         subset_results: list[SubsetResult] = []
         probs_list = []
         
+        is_optuna = trial is not None
+        
         # 각 서브셋 학습 및 (필요 시) Pruning 중간 평가
         for i, sub in enumerate(subsets):
-            print(f"  🏋️  Subset {i+1}/{len(subsets)} 학습 중...", end="\r")
+            if is_optuna:
+                msg = f"  🏋️  Trial {trial.number} - Subset {i+1}/{len(subsets)} 학습 중..."
+            else:
+                msg = f"  🏋️  Subset {i+1}/{len(subsets)} 학습 중..."
+            print(f"\r{msg.ljust(60)}", end="", flush=True)
             res = self.trainer.train(
                 subset_id=i,
                 df_subset=sub,
@@ -166,10 +182,14 @@ class UnderbaggingEnsemble:
                 cur_score = average_precision_score(y_val, cur_probs)
                 trial.report(cur_score, step=i)
                 if trial.should_prune():
-                    print(f"\n🚫  [Pruned] Trial {trial.number} pruned at step {i} (score: {cur_score:.5f})")
+                    print(f"\r  🚫  [Pruned] Trial {trial.number} pruned at step {i} (score: {cur_score:.5f})".ljust(60))
                     raise optuna.TrialPruned()
 
-        print(f"\n✅  {len(subsets)}개 모델 학습 및 평가 완료.")
+        if is_optuna:
+            # Optuna의 기본 로그가 깔끔하게 출력되도록 임시 진행 상태줄을 비움
+            print("\r" + " " * 60 + "\r", end="", flush=True)
+        else:
+            print(f"\r✅  {len(subsets)}개 모델 학습 및 평가 완료.".ljust(60))
 
         probs = np.mean(probs_list, axis=0)
         ensemble_prauc = average_precision_score(y_val, probs)
@@ -181,7 +201,8 @@ class UnderbaggingEnsemble:
             val_tune_y_true=y_val.values if hasattr(y_val, "values") else y_val,
         )
 
-        print(f"\n✨  앙상블 최종 VAL_TUNE PR-AUC = {ensemble_prauc:.5f}")
+        if not is_optuna:
+            print(f"\n✨  앙상블 최종 VAL_TUNE PR-AUC = {ensemble_prauc:.5f} (참고용 - 최종 Test Metric 아님)")
         return self._result
 
     def predict_proba(self, df: pd.DataFrame, feature_cols: list[str]) -> np.ndarray:
@@ -213,7 +234,8 @@ def make_optuna_objective(
     def objective(trial):
         max_depth   = trial.suggest_int("max_depth", *bounds["max_depth"])
         max_leaves  = min(2 ** max_depth, bounds["num_leaves"][1])
-        num_leaves  = trial.suggest_int("num_leaves", bounds["num_leaves"][0], max_leaves)
+        min_leaves  = min(bounds["num_leaves"][0], max_leaves)
+        num_leaves  = trial.suggest_int("num_leaves", min_leaves, max_leaves)
         
         n_estimators = trial.suggest_int("n_estimators", *bounds["n_estimators"]) if tune_estimators else 400
 
@@ -241,10 +263,13 @@ def make_optuna_objective(
         
         if save_model_dir is not None:
             import joblib
-            trial_dir = Path(save_model_dir) / f"trial_{trial.number}"
+            import uuid
+            trial_id_str = f"trial_{trial.number}_{uuid.uuid4().hex[:8]}"
+            trial_dir = Path(save_model_dir) / trial_id_str
             trial_dir.mkdir(parents=True, exist_ok=True)
             for i, model in enumerate(result.models):
                 joblib.dump(model, trial_dir / f"model_{i}.pkl")
+            trial.set_user_attr("model_dir", trial_id_str)
                 
         return result.val_tune_prauc
 
@@ -258,21 +283,29 @@ def _narrow_bounds(best_params: dict, orig_bounds: dict) -> dict:
     # 1. 좁게 축소 (학습률) - 민감함
     lr = best_params["learning_rate"]
     # 로그 스케일이므로 대략 ±30% 범위로 축소
-    new_bounds["learning_rate"] = (max(orig_bounds["learning_rate"][0], lr * 0.7), 
-                                   min(orig_bounds["learning_rate"][1], lr * 1.3))
+    lr_low = max(orig_bounds["learning_rate"][0], lr * 0.7)
+    lr_high = min(orig_bounds["learning_rate"][1], lr * 1.3)
+    if lr_low > lr_high: lr_low, lr_high = lr_high, lr_low
+    new_bounds["learning_rate"] = (lr_low, lr_high)
     
     # 2. 중간 축소 (구조적 파라미터)
     depth = best_params["max_depth"]
-    new_bounds["max_depth"] = (max(orig_bounds["max_depth"][0], depth - 1), 
-                               min(orig_bounds["max_depth"][1], depth + 2))
+    depth_low = max(orig_bounds["max_depth"][0], depth - 1)
+    depth_high = min(orig_bounds["max_depth"][1], depth + 2)
+    if depth_low > depth_high: depth_low, depth_high = depth_high, depth_low
+    new_bounds["max_depth"] = (depth_low, depth_high)
     
     leaves = best_params["num_leaves"]
-    new_bounds["num_leaves"] = (max(orig_bounds["num_leaves"][0], int(leaves * 0.7)), 
-                                min(orig_bounds["num_leaves"][1], int(leaves * 1.3)))
+    leaves_low = max(orig_bounds["num_leaves"][0], int(leaves * 0.7))
+    leaves_high = min(orig_bounds["num_leaves"][1], int(leaves * 1.3))
+    if leaves_low > leaves_high: leaves_low, leaves_high = leaves_high, leaves_low
+    new_bounds["num_leaves"] = (leaves_low, leaves_high)
     
     child = best_params["min_child_samples"]
-    new_bounds["min_child_samples"] = (max(orig_bounds["min_child_samples"][0], int(child * 0.8)), 
-                                       min(orig_bounds["min_child_samples"][1], int(child * 1.2)))
+    child_low = max(orig_bounds["min_child_samples"][0], int(child * 0.8))
+    child_high = min(orig_bounds["min_child_samples"][1], int(child * 1.2))
+    if child_low > child_high: child_low, child_high = child_high, child_low
+    new_bounds["min_child_samples"] = (child_low, child_high)
     
     # 3. 넓게 유지 (Regularization & Sampling) - Interaction을 위해 폭 유지
     new_bounds["feature_fraction"] = orig_bounds["feature_fraction"]
@@ -287,19 +320,62 @@ def _narrow_bounds(best_params: dict, orig_bounds: dict) -> dict:
 
 
 # ════════════════════════════════════════════════════════════
-#  5. MAIN RUNNER (run_training)
+#  5. EVALUATION UTILS & MAIN RUNNER
 # ════════════════════════════════════════════════════════════
+
+def evaluate_saved_models(
+    models: list[LGBMClassifier],
+    df: pd.DataFrame,
+    feature_cols: list[str],
+    target_col: str = "failure"
+) -> EnsembleResult:
+    """로드된 모델들을 이용해 데이터셋을 평가하고 EnsembleResult 객체를 반환합니다."""
+    X = df[feature_cols]
+    y = df[target_col]
+    
+    subset_results = []
+    probs_list = []
+    
+    for i, model in enumerate(models):
+        p = model.predict_proba(X)[:, 1]
+        probs_list.append(p)
+        val_prauc = average_precision_score(y, p)
+        
+        res = SubsetResult(
+            subset_id=i,
+            model=model,
+            val_prauc=val_prauc,
+            n_train_pos=-1,  # 로드된 모델이므로 정보 없음
+            n_train_neg=-1
+        )
+        subset_results.append(res)
+        
+    ensemble_probs = np.mean(probs_list, axis=0)
+    ensemble_prauc = average_precision_score(y, ensemble_probs)
+    
+    ens_result = EnsembleResult(
+        subset_results=subset_results,
+        val_tune_prauc=ensemble_prauc,
+        val_tune_probs=ensemble_probs,
+        val_tune_y_true=y.values if hasattr(y, 'values') else y,
+    )
+    
+    return ens_result
 
 def run_training(
     cfg,
     feature_cols: Optional[list[str]] = None,
     *,
     run_optuna: bool = False,
-    optuna_n_trials: int = 30,
+    optuna_s1_trials: Optional[int] = None,
+    optuna_s2_trials: Optional[int] = None,
     optuna_timeout: Optional[int] = None,
     optuna_rerank_delta: float = 0.005,
     optuna_rerank_cap: int = 5,
+    optuna_rerank_ids: Optional[list[int]] = None,
+    interactive_rerank: bool = False,
     show_plots: bool = True,
+    cleanup_optuna_temp: bool = True,
 ) -> dict:
     # [데이터 로드]
     subset_dir = Path(getattr(cfg, "SUBSET_DIR", ""))
@@ -315,7 +391,7 @@ def run_training(
 
     print(f"  [Debug] Train Subsets: {len(df_train)} files")
     print(f"  [Debug] Val Tune (Full) Rows: {len(df_val_tune_full):,}")
-
+    print(f"\n✅  [Ensemble] 사전 분할된 {len(df_train)}개 서브셋 학습 준비 완료.")
     # [검증 데이터 로드 (Optuna vs Single Run)]
     sampled_path = getattr(cfg, "VAL_TUNE_SAMPLED_PATH", None)
     
@@ -348,8 +424,8 @@ def run_training(
         storage_url = f"sqlite:///{db_path}"
 
         # ─── Stage 1 (Coarse Exploration) ───
-        print("\n  [Stage 1] 구조적 탐색 시작 (Coarse Exploration, 고정 n_estimators=400)")
-        s1_trials = int(optuna_n_trials * 0.6)
+        s1_trials = optuna_s1_trials if optuna_s1_trials is not None else getattr(cfg, "OPTUNA_S1_TRIALS", 30)
+        print(f"\n  [Stage 1] 구조적 탐색 시작 (Coarse Exploration, 고정 n_estimators=400, 설정된 목표 횟수: {s1_trials}회)")
         study_s1_name = f"{base_study_name}_s1"
         
         study_s1 = optuna.create_study(
@@ -361,20 +437,26 @@ def run_training(
             load_if_exists=True,
         )
         
-        completed_s1 = len([t for t in study_s1.trials if t.state == optuna.trial.TrialState.COMPLETE])
-        if completed_s1 < s1_trials:
+        total_s1 = len(study_s1.trials)
+        if total_s1 < s1_trials:
             obj_s1 = make_optuna_objective(
                 df_train, df_val_optuna, feats, cfg.TARGET_COL, _device, 
                 bounds=cfg.OPTUNA_BOUNDS, tune_estimators=False
             )
-            study_s1.optimize(obj_s1, n_trials=s1_trials - completed_s1, timeout=optuna_timeout)
+            study_s1.optimize(obj_s1, n_trials=s1_trials - total_s1, timeout=optuna_timeout)
         
-        s1_best_params = study_s1.best_params
-        print(f"  [Stage 1] 완료. Best PR-AUC: {study_s1.best_value:.5f}")
+        # s1_trials 제한을 엄격하게 지켜 재현성을 보장 (초과된 트라이얼은 무시)
+        valid_s1_trials = [t for t in study_s1.trials if t.number < s1_trials and t.state == optuna.trial.TrialState.COMPLETE]
+        if not valid_s1_trials:
+            raise ValueError(f"Stage 1에서 완료(COMPLETE)된 트라이얼이 없습니다. (목표 횟수: {s1_trials})")
+            
+        best_s1_trial = max(valid_s1_trials, key=lambda t: t.value)
+        s1_best_params = best_s1_trial.params
+        print(f"  [Stage 1] 완료. Best PR-AUC (처음 {s1_trials}회 기준): {best_s1_trial.value:.5f}")
 
         # ─── Stage 2 (Refinement) ───
-        print("\n  [Stage 2] 정밀 탐색 시작 (Narrowed Bounds & n_estimators Tuning)")
-        s2_trials = optuna_n_trials - s1_trials
+        s2_trials = optuna_s2_trials if optuna_s2_trials is not None else getattr(cfg, "OPTUNA_S2_TRIALS", 20)
+        print(f"\n  [Stage 2] 정밀 탐색 시작 (Narrowed Bounds & n_estimators Tuning, 설정된 목표 횟수: {s2_trials}회)")
         study_s2_name = f"{base_study_name}_s2"
         
         narrowed_bounds = _narrow_bounds(s1_best_params, cfg.OPTUNA_BOUNDS)
@@ -389,7 +471,8 @@ def run_training(
         )
         
         # 웜스타트 주입 (Enqueuing)
-        if len(study_s2.trials) == 0:
+        completed_s2_trials = [t for t in study_s2.trials if t.state == optuna.trial.TrialState.COMPLETE]
+        if len(completed_s2_trials) == 0:
             warm_params = s1_best_params.copy()
             warm_params["n_estimators"] = 400 # 기본값 명시
             study_s2.enqueue_trial(warm_params)
@@ -397,86 +480,147 @@ def run_training(
             
         optuna_temp_dir = Path(cfg.MODEL_SAVE_DIR).parent / "optuna_temp"
         
-        completed_s2 = len([t for t in study_s2.trials if t.state == optuna.trial.TrialState.COMPLETE])
-        if completed_s2 < s2_trials:
+        total_s2 = len(study_s2.trials)
+        if total_s2 < s2_trials:
             obj_s2 = make_optuna_objective(
                 df_train, df_val_optuna, feats, cfg.TARGET_COL, _device, 
                 bounds=narrowed_bounds, tune_estimators=True, save_model_dir=str(optuna_temp_dir)
             )
-            study_s2.optimize(obj_s2, n_trials=s2_trials - completed_s2, timeout=optuna_timeout)
+            study_s2.optimize(obj_s2, n_trials=s2_trials - total_s2, timeout=optuna_timeout)
 
-        try:
-            print(f"  [Stage 2] 완료. Best PR-AUC: {study_s2.best_value:.5f}")
-        except (ValueError, RuntimeError):
-            print("  [Stage 2] 완료. (완료된 트라이얼이 없어 최적값을 표시할 수 없습니다.)")
+        valid_s2_trials = [t for t in study_s2.trials if t.number < s2_trials and t.state == optuna.trial.TrialState.COMPLETE]
+        if valid_s2_trials:
+            best_s2_trial = max(valid_s2_trials, key=lambda t: t.value)
+            print(f"  [Stage 2] 완료. Best PR-AUC (처음 {s2_trials}회 기준): {best_s2_trial.value:.5f}")
+        else:
+            best_s2_trial = None
+            print("  [Stage 2] 완료. (지정된 횟수 내에 완료된 트라이얼이 없어 최적값을 표시할 수 없습니다.)")
 
-        # ─── Margin-based Reranking ───
-        if is_val_sampled and optuna_rerank_delta > 0:
-            print(f"\n  [Rerank] Margin-based Reranking 시작 (Full Validation, 대상: Stage 2)")
+        # ─── Reranking ───
+        if is_val_sampled and (optuna_rerank_delta > 0 or optuna_rerank_ids is not None or interactive_rerank):
+            print(f"\n  [Rerank] Reranking 시작 (Full Validation, 대상: Stage 2)")
             
-            # 모든 트라이얼을 가져온 후 'COMPLETE' 상태인 것만 필터링 (버전 호환성 및 안정성 확보)
-            df_trials = study_s2.trials_dataframe()
-            if not df_trials.empty and 'state' in df_trials.columns:
-                df_trials = df_trials[df_trials['state'].astype(str).str.contains('COMPLETE')]
+            # 설정된 s2_trials 횟수를 넘기지 않은 유효 트라이얼들만 리랭킹 대상으로 삼음
+            completed_trials = valid_s2_trials
             
-            if not df_trials.empty:
-                best_val = df_trials['value'].max()
+            if completed_trials:
+                # 1. Trial 점수 표 출력
+                df_trials = pd.DataFrame([
+                    {"Trial": t.number, "Sampled PR-AUC": t.value}
+                    for t in completed_trials
+                ]).sort_values("Sampled PR-AUC", ascending=False)
                 
-                candidates = df_trials[df_trials['value'] >= best_val - optuna_rerank_delta]
-                candidates = candidates.sort_values('value', ascending=False).head(optuna_rerank_cap)
+                print("\n📊 [Stage 2 Trial 결과 요약]")
+                print(df_trials.to_markdown(index=False))
                 
-                print(f"  [Rerank] 후보 수: {len(candidates)} (best: {best_val:.5f}, delta: {optuna_rerank_delta})")
+                # 2. Interactive Input
+                if interactive_rerank:
+                    valid_ids = {t.number for t in completed_trials}
+                    while True:
+                        user_input = input("\n📝 리랭크할 Trial 번호를 쉼표(,)로 구분하여 입력하세요 (예: 0,2 / Enter 입력 시 자동 선택): ")
+                        if not user_input.strip():
+                            break  # 비워두면 기존 Margin 기반 자동 탐색으로 넘어감
+                        
+                        try:
+                            parsed_ids = [int(x.strip()) for x in user_input.split(",")]
+                            
+                            # 목록에 없는 번호를 썼는지 검증
+                            invalid_ids = [x for x in parsed_ids if x not in valid_ids]
+                            if invalid_ids:
+                                print(f"  ⚠️ 에러: 트라이얼 번호 {invalid_ids}는 위 목록에 존재하지 않습니다. 다시 입력해주세요.")
+                                continue
+                                
+                            optuna_rerank_ids = parsed_ids
+                            break
+                        except ValueError:
+                            print("  ⚠️ 에러: 숫자와 쉼표(,)만 입력하셔야 합니다. 다시 입력해주세요.")
+                        
+                if optuna_rerank_ids is not None:
+                    # 사용자 지정 트라이얼 번호로 필터링
+                    candidates = [t for t in completed_trials if t.number in optuna_rerank_ids]
+                    print(f"  [Rerank] 지정된 트라이얼 리랭킹: {len(candidates)}개 (IDs: {optuna_rerank_ids})")
+                else:
+                    # Margin 기반 자동 필터링
+                    best_val = max(t.value for t in completed_trials)
+                    candidates = [t for t in completed_trials if t.value >= best_val - optuna_rerank_delta]
+                    candidates = sorted(candidates, key=lambda t: t.value, reverse=True)[:optuna_rerank_cap]
+                    print(f"  [Rerank] 자동 후보 선택: {len(candidates)}개 (best: {best_val:.5f}, delta: {optuna_rerank_delta})")
                 
                 best_rerank_score = -1.0
                 best_rerank_params = None
                 
                 import joblib
                 
-                for idx, row in candidates.iterrows():
-                    trial_number = row['number']
-                    cand_params = {k.replace('params_', ''): v for k, v in row.items() if k.startswith('params_')}
+                for trial_obj in candidates:
+                    trial_number = trial_obj.number
+                    cand_params = trial_obj.params
                     
                     merged_params = cfg.LGBM_PARAMS.copy()
                     merged_params.update(cand_params)
                     
-                    trial_dir = optuna_temp_dir / f"trial_{trial_number}"
+                    model_dir_name = trial_obj.user_attrs.get("model_dir")
+                    if model_dir_name:
+                        trial_dir = optuna_temp_dir / model_dir_name
+                    else:
+                        trial_dir = optuna_temp_dir / f"trial_{trial_number}"
                     
                     if trial_dir.exists():
-                        # 저장된 모델 Reuse (Inference Only)
-                        models = []
-                        for i in range(len(df_train)):
-                            model_path = trial_dir / f"model_{i}.pkl"
-                            models.append(joblib.load(model_path))
+                        # 파일 존재 여부 및 무결성 검증 방어 로직
+                        all_exist = all((trial_dir / f"model_{i}.pkl").exists() for i in range(len(df_train)))
                         
-                        X_val = df_val_tune_full[feats]
-                        y_val = df_val_tune_full[cfg.TARGET_COL]
-                        probs = np.mean([m.predict_proba(X_val)[:, 1] for m in models], axis=0)
-                        score = average_precision_score(y_val, probs)
-                        print(f"    - Trial {trial_number} (Reuse): Sampled PR-AUC = {row['value']:.5f} -> Full PR-AUC = {score:.5f}")
+                        if not all_exist:
+                            print(f"    - Trial {trial_number} (Skipped): 일부 모델 파일 누락 (Corrupted)")
+                            continue
+                            
+                        try:
+                            # 안내 메시지 추가 (침묵 방지)
+                            print(f"    - Trial {trial_number} 검증 중 (전체 데이터 추론)...", end="\r")
+                            # 저장된 모델 Reuse (Inference Only)
+                            models = []
+                            for i in range(len(df_train)):
+                                model_path = trial_dir / f"model_{i}.pkl"
+                                models.append(joblib.load(model_path))
+                            
+                            X_val = df_val_tune_full[feats]
+                            y_val = df_val_tune_full[cfg.TARGET_COL]
+                            probs = np.mean([m.predict_proba(X_val)[:, 1] for m in models], axis=0)
+                            score = average_precision_score(y_val, probs)
+                            print(f"    - Trial {trial_number} (Reuse): Sampled PR-AUC = {trial_obj.value:.5f} -> Full PR-AUC = {score:.5f}")
+                            
+                            if score > best_rerank_score:
+                                best_rerank_score = score
+                                best_rerank_params = merged_params
+                                
+                        except Exception as e:
+                            print(f"    - Trial {trial_number} (Skipped): 모델 로드 중 에러 발생 ({type(e).__name__})")
+                            continue
                     else:
-                        # 저장된 모델이 없으면 (예: Resume) Stochastic 재학습 Fallback
-                        trainer = SubsetTrainer(lgbm_params=merged_params, target_col=cfg.TARGET_COL)
-                        ens = UnderbaggingEnsemble(trainer=trainer)
-                        res = ens.fit(df_train, df_val_tune_full, feature_cols=feats, target_col=cfg.TARGET_COL)
-                        score = res.val_tune_prauc
-                        print(f"    - Trial {trial_number} (Retrain): Sampled PR-AUC = {row['value']:.5f} -> Full PR-AUC = {score:.5f}")
-                    
-                    if score > best_rerank_score:
-                        best_rerank_score = score
-                        best_rerank_params = merged_params
+                        # Stochastic inconsistency 방지를 위해 모델 파일이 없는 trial은 안전하게 건너뜀 (Retrain 배제)
+                        print(f"    - Trial {trial_number} (Skipped): 저장된 모델 없음 (재학습 시 Stochastic 편향 방지)")
                 
-                best_params = best_rerank_params
-                print(f"  [Rerank] 최종 선택된 Full PR-AUC: {best_rerank_score:.5f}")
-            else:
-                best_params.update(study_s2.best_params)
-        else:
-            best_params.update(study_s2.best_params)
+                if best_rerank_params is not None:
+                    best_params = best_rerank_params
+                    print(f"  [Rerank] 최종 선택된 Full PR-AUC: {best_rerank_score:.5f}")
+            elif best_s2_trial:
+                best_params.update(best_s2_trial.params)
+        elif best_s2_trial:
+            best_params.update(best_s2_trial.params)
 
     # [최종 학습] (전체 검증셋 사용)
-    print("\n  [Final] 최적 파라미터로 최종 앙상블 학습 (Full Validation)")
+    print("\n  [Final] 최적 파라미터로 최종 앙상블 학습 (Val-Tune 기반, 최종 성능 평가용 아님)")
+    print("          ⚠️ 현재 출력되는 점수는 Parameter Selection 과정에 반영된 결과(Biased)이므로,")
+    print("          ⚠️ unbiased metric 확보를 위해서는 반드시 분리된 Test 셋으로 최종 리포트를 작성해야 합니다.")
     trainer = SubsetTrainer(lgbm_params=best_params, target_col=cfg.TARGET_COL)
     ens     = UnderbaggingEnsemble(trainer=trainer)
     result = ens.fit(df_train, df_val_tune_full, feature_cols=feats, target_col=cfg.TARGET_COL)
+
+    # 임시 모델 폴더 정리
+    if run_optuna and cleanup_optuna_temp:
+        optuna_temp_dir = Path(cfg.MODEL_SAVE_DIR).parent / "optuna_temp"
+        if optuna_temp_dir.exists():
+            import shutil
+            shutil.rmtree(optuna_temp_dir, ignore_errors=True)
+            print(f"\n  [Cleanup] {optuna_temp_dir} 삭제 완료.")
 
     return {"ensemble_result": result, "best_params": best_params, "feature_cols": feats}
 
@@ -538,3 +682,35 @@ def plot_subset_prauc(result: EnsembleResult):
     plt.xlabel('Subset ID'); plt.ylabel('PR-AUC')
     plt.legend(); plt.grid(axis='y', alpha=0.3)
     plt.show()
+
+def plot_shap_importance(
+    models: list[LGBMClassifier],
+    df: pd.DataFrame,
+    feature_cols: list[str],
+    sample_size: int = 1000,
+    seed: int = 42,
+    max_display: int = 30
+):
+    """저장된 앙상블 모델들에 대해 SHAP 중요도를 계산하고 Summary Plot을 시각화합니다."""
+    import shap
+    import warnings
+    warnings.filterwarnings('ignore')
+    
+    X_val_shap = df[feature_cols].copy()
+    sample_size = min(sample_size, len(X_val_shap))
+    X_sample = X_val_shap.sample(sample_size, random_state=seed).reset_index(drop=True)
+    
+    print(f'SHAP 계산 중... (샘플={sample_size}, 모델={len(models)}개)')
+    
+    sv_list = []
+    for i, model in enumerate(models):
+        explainer = shap.TreeExplainer(model)
+        sv = explainer.shap_values(X_sample)
+        if isinstance(sv, list): sv = sv[1]
+        sv_list.append(sv)
+        print(f'  모델 {i+1}/{len(models)} 완료', end='\r')
+        
+    mean_shap = np.mean(sv_list, axis=0)
+    print('\nSHAP 계산 완료!')
+    
+    shap.summary_plot(mean_shap, X_sample, feature_names=feature_cols, max_display=max_display, show=True)

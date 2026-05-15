@@ -107,7 +107,7 @@ SAMPLER_KWARGS = dict(
 # ════════════════════════════════════════════════════════════
 #  LightGBM 파라미터  (README §6.2)
 # ════════════════════════════════════════════════════════════
-# Optuna 튜닝 전 기본값 / 튜닝 후 best_params 로 자동 교체됨
+# Optuna 튜닝 전 기본값 / 튜닝 후 best_params 로 자동 교체됨 (파일 수정 아닌 메모리 상에서)
 
 LGBM_PARAMS = dict(
     objective         = "binary",
@@ -138,9 +138,10 @@ LGBM_PARAMS = dict(
 #  Optuna 설정  (README §6.4)
 # ════════════════════════════════════════════════════════════
 
-OPTUNA_N_TRIALS = 50         # 탐색 트라이얼 수
+OPTUNA_S1_TRIALS = 150         # Stage 1 (Coarse) 탐색 횟수
+OPTUNA_S2_TRIALS = 150         # Stage 2 (Fine) 탐색 횟수
 OPTUNA_TIMEOUT  = None       # 초 단위 타임아웃. None = n_trials 로만 제한
-OPTUNA_DB_PATH  = "optuna_study.db"  # SQLite 저장 경로
+OPTUNA_DB_PATH  = str(_BASE / "models" / "optuna_study.db")  # SQLite 저장 경로 (절대 경로)
 OPTUNA_STUDY_NAME = "hdd_failure_prediction" # Study 이름
 
 # Optuna Stage 1 탐색 범위 (Coarse Search)
