@@ -225,7 +225,6 @@ def make_optuna_objective(
     target_col: str = "failure",
     device: str = "cpu",
     bounds: dict = None,
-    tune_estimators: bool = False,
     save_model_dir: str = None,
 ):
     if bounds is None:
@@ -237,7 +236,8 @@ def make_optuna_objective(
         min_leaves  = min(bounds["num_leaves"][0], max_leaves)
         num_leaves  = trial.suggest_int("num_leaves", min_leaves, max_leaves)
         
-        n_estimators = trial.suggest_int("n_estimators", *bounds["n_estimators"]) if tune_estimators else 400
+        n_estimators = trial.suggest_int("n_estimators", *bounds["n_estimators"])
+        scale_pos_weight = trial.suggest_float("scale_pos_weight", *bounds["scale_pos_weight"]) if "scale_pos_weight" in bounds else 1.0
 
         params = {
             "learning_rate":     trial.suggest_float("learning_rate", *bounds["learning_rate"], log=True),
@@ -250,6 +250,7 @@ def make_optuna_objective(
             "lambda_l1":         trial.suggest_float("lambda_l1", *bounds["lambda_l1"], log=True),
             "lambda_l2":         trial.suggest_float("lambda_l2", *bounds["lambda_l2"], log=True),
             "n_estimators":      n_estimators,
+            "scale_pos_weight":  scale_pos_weight,
             "verbosity":         -1,
             "device":            device,
             "random_state":      42,
@@ -276,47 +277,6 @@ def make_optuna_objective(
     return objective
 
 
-def _narrow_bounds(best_params: dict, orig_bounds: dict) -> dict:
-    """Stage 1의 best_params를 기반으로 Stage 2 탐색 범위를 파라미터 특성에 맞게 축소합니다."""
-    new_bounds = {}
-    
-    # 1. 좁게 축소 (학습률) - 민감함
-    lr = best_params["learning_rate"]
-    # 로그 스케일이므로 대략 ±30% 범위로 축소
-    lr_low = max(orig_bounds["learning_rate"][0], lr * 0.7)
-    lr_high = min(orig_bounds["learning_rate"][1], lr * 1.3)
-    if lr_low > lr_high: lr_low, lr_high = lr_high, lr_low
-    new_bounds["learning_rate"] = (lr_low, lr_high)
-    
-    # 2. 중간 축소 (구조적 파라미터)
-    depth = best_params["max_depth"]
-    depth_low = max(orig_bounds["max_depth"][0], depth - 1)
-    depth_high = min(orig_bounds["max_depth"][1], depth + 2)
-    if depth_low > depth_high: depth_low, depth_high = depth_high, depth_low
-    new_bounds["max_depth"] = (depth_low, depth_high)
-    
-    leaves = best_params["num_leaves"]
-    leaves_low = max(orig_bounds["num_leaves"][0], int(leaves * 0.7))
-    leaves_high = min(orig_bounds["num_leaves"][1], int(leaves * 1.3))
-    if leaves_low > leaves_high: leaves_low, leaves_high = leaves_high, leaves_low
-    new_bounds["num_leaves"] = (leaves_low, leaves_high)
-    
-    child = best_params["min_child_samples"]
-    child_low = max(orig_bounds["min_child_samples"][0], int(child * 0.8))
-    child_high = min(orig_bounds["min_child_samples"][1], int(child * 1.2))
-    if child_low > child_high: child_low, child_high = child_high, child_low
-    new_bounds["min_child_samples"] = (child_low, child_high)
-    
-    # 3. 넓게 유지 (Regularization & Sampling) - Interaction을 위해 폭 유지
-    new_bounds["feature_fraction"] = orig_bounds["feature_fraction"]
-    new_bounds["bagging_fraction"] = orig_bounds["bagging_fraction"]
-    new_bounds["lambda_l1"] = orig_bounds["lambda_l1"]
-    new_bounds["lambda_l2"] = orig_bounds["lambda_l2"]
-    
-    # n_estimators는 Stage 2에서 해방되므로 원본 바운드 사용
-    new_bounds["n_estimators"] = orig_bounds["n_estimators"]
-    
-    return new_bounds
 
 
 # ════════════════════════════════════════════════════════════
@@ -367,8 +327,7 @@ def run_training(
     feature_cols: Optional[list[str]] = None,
     *,
     run_optuna: bool = False,
-    optuna_s1_trials: Optional[int] = None,
-    optuna_s2_trials: Optional[int] = None,
+    optuna_trials: Optional[int] = None,
     optuna_timeout: Optional[int] = None,
     optuna_rerank_delta: float = 0.005,
     optuna_rerank_cap: int = 5,
@@ -423,85 +382,43 @@ def run_training(
         base_study_name = getattr(cfg, "OPTUNA_STUDY_NAME", "hdd_failure_prediction")
         storage_url = f"sqlite:///{db_path}"
 
-        # ─── Stage 1 (Coarse Exploration) ───
-        s1_trials = optuna_s1_trials if optuna_s1_trials is not None else getattr(cfg, "OPTUNA_S1_TRIALS", 30)
-        print(f"\n  [Stage 1] 구조적 탐색 시작 (Coarse Exploration, 고정 n_estimators=400, 설정된 목표 횟수: {s1_trials}회)")
-        study_s1_name = f"{base_study_name}_s1"
+        # ─── Single Stage Optuna Tuning ───
+        trials = optuna_trials if optuna_trials is not None else getattr(cfg, "OPTUNA_TRIALS", 300)
+        print(f"\n  [Optuna Tuning] 하이퍼파라미터 탐색 시작 (설정된 목표 횟수: {trials}회, 가지치기 활성화)")
+        study_name = base_study_name
         
-        study_s1 = optuna.create_study(
-            study_name=study_s1_name,
+        optuna_temp_dir = Path(cfg.MODEL_SAVE_DIR).parent / "optuna_temp"
+        
+        study = optuna.create_study(
+            study_name=study_name,
             storage=storage_url,
             direction="maximize",
             sampler=optuna.samplers.TPESampler(seed=cfg.SEED),
-            pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=3), # Stage 1 적극적 Pruning
+            pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=3), # 가지치기 활성화
             load_if_exists=True,
         )
         
-        total_s1 = len(study_s1.trials)
-        if total_s1 < s1_trials:
-            obj_s1 = make_optuna_objective(
-                df_train, df_val_optuna, feats, cfg.TARGET_COL, _device, 
-                bounds=cfg.OPTUNA_BOUNDS, tune_estimators=False
+        total_trials = len(study.trials)
+        if total_trials < trials:
+            obj = make_optuna_objective(
+                df_train, df_val_optuna, feats, cfg.TARGET_COL, _device,
+                bounds=cfg.OPTUNA_BOUNDS, save_model_dir=str(optuna_temp_dir)
             )
-            study_s1.optimize(obj_s1, n_trials=s1_trials - total_s1, timeout=optuna_timeout)
+            study.optimize(obj, n_trials=trials - total_trials, timeout=optuna_timeout)
         
-        # s1_trials 제한을 엄격하게 지켜 재현성을 보장 (초과된 트라이얼은 무시)
-        valid_s1_trials = [t for t in study_s1.trials if t.number < s1_trials and t.state == optuna.trial.TrialState.COMPLETE]
-        if not valid_s1_trials:
-            raise ValueError(f"Stage 1에서 완료(COMPLETE)된 트라이얼이 없습니다. (목표 횟수: {s1_trials})")
+        valid_trials = [t for t in study.trials if t.number < trials and t.state == optuna.trial.TrialState.COMPLETE]
+        if not valid_trials:
+            raise ValueError(f"완료(COMPLETE)된 트라이얼이 없습니다. (목표 횟수: {trials})")
             
-        best_s1_trial = max(valid_s1_trials, key=lambda t: t.value)
-        s1_best_params = best_s1_trial.params
-        print(f"  [Stage 1] 완료. Best PR-AUC (처음 {s1_trials}회 기준): {best_s1_trial.value:.5f}")
-
-        # ─── Stage 2 (Refinement) ───
-        s2_trials = optuna_s2_trials if optuna_s2_trials is not None else getattr(cfg, "OPTUNA_S2_TRIALS", 20)
-        print(f"\n  [Stage 2] 정밀 탐색 시작 (Narrowed Bounds & n_estimators Tuning, 설정된 목표 횟수: {s2_trials}회)")
-        study_s2_name = f"{base_study_name}_s2"
-        
-        narrowed_bounds = _narrow_bounds(s1_best_params, cfg.OPTUNA_BOUNDS)
-        
-        study_s2 = optuna.create_study(
-            study_name=study_s2_name,
-            storage=storage_url,
-            direction="maximize",
-            sampler=optuna.samplers.TPESampler(seed=cfg.SEED + 1), # 다른 시드로 다양한 탐색
-            pruner=optuna.pruners.NopPruner(), # Stage 2는 미세 조정 단계이므로 Pruning 안함
-            load_if_exists=True,
-        )
-        
-        # 웜스타트 주입 (Enqueuing)
-        completed_s2_trials = [t for t in study_s2.trials if t.state == optuna.trial.TrialState.COMPLETE]
-        if len(completed_s2_trials) == 0:
-            warm_params = s1_best_params.copy()
-            warm_params["n_estimators"] = 400 # 기본값 명시
-            study_s2.enqueue_trial(warm_params)
-            print("  [Stage 2] Stage 1 Best 파라미터 웜스타트 주입 완료.")
-            
-        optuna_temp_dir = Path(cfg.MODEL_SAVE_DIR).parent / "optuna_temp"
-        
-        total_s2 = len(study_s2.trials)
-        if total_s2 < s2_trials:
-            obj_s2 = make_optuna_objective(
-                df_train, df_val_optuna, feats, cfg.TARGET_COL, _device, 
-                bounds=narrowed_bounds, tune_estimators=True, save_model_dir=str(optuna_temp_dir)
-            )
-            study_s2.optimize(obj_s2, n_trials=s2_trials - total_s2, timeout=optuna_timeout)
-
-        valid_s2_trials = [t for t in study_s2.trials if t.number < s2_trials and t.state == optuna.trial.TrialState.COMPLETE]
-        if valid_s2_trials:
-            best_s2_trial = max(valid_s2_trials, key=lambda t: t.value)
-            print(f"  [Stage 2] 완료. Best PR-AUC (처음 {s2_trials}회 기준): {best_s2_trial.value:.5f}")
-        else:
-            best_s2_trial = None
-            print("  [Stage 2] 완료. (지정된 횟수 내에 완료된 트라이얼이 없어 최적값을 표시할 수 없습니다.)")
+        best_trial = max(valid_trials, key=lambda t: t.value)
+        print(f"  [Optuna Tuning] 완료. Best PR-AUC (처음 {trials}회 기준): {best_trial.value:.5f}")
 
         # ─── Reranking ───
         if is_val_sampled and (optuna_rerank_delta > 0 or optuna_rerank_ids is not None or interactive_rerank):
-            print(f"\n  [Rerank] Reranking 시작 (Full Validation, 대상: Stage 2)")
+            print(f"\n  [Rerank] Reranking 시작 (Full Validation, 대상: Tuning 완료 모델)")
             
-            # 설정된 s2_trials 횟수를 넘기지 않은 유효 트라이얼들만 리랭킹 대상으로 삼음
-            completed_trials = valid_s2_trials
+            # 설정된 trials 횟수를 넘기지 않은 유효 트라이얼들만 리랭킹 대상으로 삼음
+            completed_trials = valid_trials
             
             if completed_trials:
                 # 1. Trial 점수 표 출력
@@ -510,7 +427,7 @@ def run_training(
                     for t in completed_trials
                 ]).sort_values("Sampled PR-AUC", ascending=False)
                 
-                print("\n📊 [Stage 2 Trial 결과 요약]")
+                print("\n📊 [Optuna Trial 결과 요약]")
                 print(df_trials.to_markdown(index=False))
                 
                 # 2. Interactive Input
@@ -601,10 +518,10 @@ def run_training(
                 if best_rerank_params is not None:
                     best_params = best_rerank_params
                     print(f"  [Rerank] 최종 선택된 Full PR-AUC: {best_rerank_score:.5f}")
-            elif best_s2_trial:
-                best_params.update(best_s2_trial.params)
-        elif best_s2_trial:
-            best_params.update(best_s2_trial.params)
+            elif best_trial:
+                best_params.update(best_trial.params)
+        elif best_trial:
+            best_params.update(best_trial.params)
 
     # [최종 학습] (전체 검증셋 사용)
     print("\n  [Final] 최적 파라미터로 최종 앙상블 학습 (Val-Tune 기반, 최종 성능 평가용 아님)")

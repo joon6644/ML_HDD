@@ -123,13 +123,12 @@ LGBM_PARAMS = dict(
     bagging_freq      = 1,     # underbagging 구조에서 추가 탐색 불필요
     lambda_l1         = 0.1,
     lambda_l2         = 0.1,
-    # scale_pos_weight 제거: underbagging 10:1 + near-failure weighting으로
-    # 데이터 레벨 imbalance 처리 완료. 추가 시 soft-voting 캘리브레이션 왜곡.
+    scale_pos_weight  = 1.0,
     random_state      = SEED,
     n_jobs            = -1,
     device            = "gpu" if _HAS_GPU else "cpu",
     # ── [GPU 최적화] ──────────────────────────
-    max_bin           = 63,    # GPU 연산 및 메모리 효율 급상승
+    max_bin           = 63,    # GPU 연산 및 메모리 급상승
     gpu_use_dp        = False, # 배정밀도 미사용 (속도 향상)
 )
 
@@ -138,13 +137,12 @@ LGBM_PARAMS = dict(
 #  Optuna 설정  (README §6.4)
 # ════════════════════════════════════════════════════════════
 
-OPTUNA_S1_TRIALS = 150         # Stage 1 (Coarse) 탐색 횟수
-OPTUNA_S2_TRIALS = 150         # Stage 2 (Fine) 탐색 횟수
+OPTUNA_TRIALS = 300         # 탐색 횟수
 OPTUNA_TIMEOUT  = None       # 초 단위 타임아웃. None = n_trials 로만 제한
 OPTUNA_DB_PATH  = str(_BASE / "models" / "optuna_study.db")  # SQLite 저장 경로 (절대 경로)
 OPTUNA_STUDY_NAME = "hdd_failure_prediction" # Study 이름
 
-# Optuna Stage 1 탐색 범위 (Coarse Search)
+# Optuna 탐색 범위
 OPTUNA_BOUNDS = {
     "learning_rate": (0.01, 0.1),
     "max_depth": (4, 10),
@@ -154,8 +152,9 @@ OPTUNA_BOUNDS = {
     "feature_fraction": (0.5, 1.0),
     "bagging_fraction": (0.6, 1.0),
     "lambda_l1": (1e-4, 1.0),
-    "lambda_l2": (1e-8, 10.0),
-    "n_estimators": (400, 800), # Stage 2에서 가변적으로 사용
+    "lambda_l2": (1e-8, 5.0),
+    "n_estimators": (400, 800),
+    "scale_pos_weight": (1.0, 10.0),
 }
 
 
