@@ -153,8 +153,7 @@ OPTUNA_BOUNDS = {
     "bagging_fraction": (0.6, 1.0),
     "lambda_l1": (1e-4, 1.0),
     "lambda_l2": (1e-8, 5.0),
-    "n_estimators": (400, 800),
-    "scale_pos_weight": (1.0, 10.0),
+    "n_estimators": (400, 800)
 }
 
 
