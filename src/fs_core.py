@@ -601,6 +601,10 @@ def run_pipeline(
     dict with keys:
         features, audit, cv_result, df_gain, df_shap, df_interaction, cm
     """
+    from config.path_utils import validate_path_contract
+
+    validate_path_contract(list(getattr(cfg, "REQUIRED_DATA_PATHS", [])))
+
     # ── 0. config validation ──────────────────────────────────
     issues = validate_config(cfg)
     if issues:

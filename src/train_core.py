@@ -336,6 +336,13 @@ def run_training(
     show_plots: bool = True,
     cleanup_optuna_temp: bool = True,
 ) -> dict:
+    from config.path_utils import validate_path_contract
+
+    required_paths = list(getattr(cfg, "REQUIRED_DATA_PATHS", []))
+    if run_optuna:
+        required_paths.append(("sampled val_tune data", "file", cfg.VAL_TUNE_SAMPLED_PATH))
+    validate_path_contract(required_paths)
+
     # [데이터 로드]
     subset_dir = Path(getattr(cfg, "SUBSET_DIR", ""))
     subset_files = sorted(list(subset_dir.glob("subset_*.parquet"))) if subset_dir.exists() else []

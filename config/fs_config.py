@@ -12,6 +12,7 @@
 import os
 import numpy as np
 import lightgbm as lgb
+from config.path_utils import PROJECT_ROOT, data_path
 
 
 def check_gpu() -> bool:
@@ -26,13 +27,30 @@ def check_gpu() -> bool:
     except Exception:
         return False
 
-from pathlib import Path
+def get_lgbm_device() -> str:
+    """Select a portable LightGBM device.
+
+    Set ML_HDD_LGBM_DEVICE=gpu on machines where the GPU build is known to work.
+    Set ML_HDD_LGBM_DEVICE=auto to run the import-time GPU probe.
+    """
+    device = os.environ.get("ML_HDD_LGBM_DEVICE", "cpu").lower()
+    if device == "auto":
+        return "gpu" if check_gpu() else "cpu"
+    if device not in {"cpu", "gpu"}:
+        raise ValueError("ML_HDD_LGBM_DEVICE must be one of: cpu, gpu, auto")
+    return device
 
 # ─── 경로 ────────────────────────────────────────────────────
-BASE_DIR        = Path(__file__).parent.parent
-TRAIN_PATH      = str(BASE_DIR / "data" / "05_feature_selection" / "fs_train.parquet")
-TEST_PATH       = str(BASE_DIR / "data" / "05_feature_selection" / "fs_validation.parquet")
+BASE_DIR        = PROJECT_ROOT
+TRAIN_PATH      = data_path("05_feature_selection/fs_train.parquet")
+TEST_PATH       = data_path("05_feature_selection/fs_validation.parquet")
 FEATURE_GROUP_PATH = str(BASE_DIR / "config" / "json" / "feature_groups.json")
+
+REQUIRED_DATA_PATHS = [
+    ("feature-selection train data", "file", TRAIN_PATH),
+    ("feature-selection validation data", "file", TEST_PATH),
+    ("feature group definition", "file", FEATURE_GROUP_PATH),
+]
 
 
 # ─── 실험 모드 ───────────────────────────────────────────────
@@ -153,7 +171,7 @@ TARGET_COL = "failure"
 SEED = 42
 
 # ─── LightGBM 하이퍼파라미터 ──────────────
-_HAS_GPU = check_gpu()
+_LGBM_DEVICE = get_lgbm_device()
 
 LGBM_PARAMS = {
     "objective":              "binary",
@@ -163,7 +181,7 @@ LGBM_PARAMS = {
     "num_leaves":             40,
     "n_estimators":           200,
     "learning_rate":          0.07,
-    "device":                 "gpu" if _HAS_GPU else "cpu",
+    "device":                 _LGBM_DEVICE,
     "random_state":           SEED,
     "bagging_seed":           SEED,
     "feature_fraction_seed":  SEED,

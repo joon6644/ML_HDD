@@ -6,7 +6,9 @@ train_config.py  ─  모델 학습 파이프라인 설정  (README §6)
 
 import numpy as np
 import lightgbm as lgb
+import os
 from pathlib import Path
+from config.path_utils import PROJECT_ROOT, data_path
 
 def check_gpu() -> bool:
     """LightGBM GPU 사용 가능 여부 확인."""
@@ -20,8 +22,20 @@ def check_gpu() -> bool:
     except Exception:
         return False
 
-_HAS_GPU = check_gpu()
-print(f"🖥️  LightGBM GPU 가용성: {'[OK] 사용 가능' if _HAS_GPU else '[FAIL] 사용 불가 (CPU로 전환)'}")
+def get_lgbm_device() -> str:
+    """Select a portable LightGBM device.
+
+    Set ML_HDD_LGBM_DEVICE=gpu on machines where the GPU build is known to work.
+    Set ML_HDD_LGBM_DEVICE=auto to run the import-time GPU probe.
+    """
+    device = os.environ.get("ML_HDD_LGBM_DEVICE", "cpu").lower()
+    if device == "auto":
+        return "gpu" if check_gpu() else "cpu"
+    if device not in {"cpu", "gpu"}:
+        raise ValueError("ML_HDD_LGBM_DEVICE must be one of: cpu, gpu, auto")
+    return device
+
+_LGBM_DEVICE = get_lgbm_device()
 
 # ════════════════════════════════════════════════════════════
 #  기본 설정 (SEED)
@@ -34,19 +48,27 @@ TARGET_COL = "failure"
 #  경로 설정
 # ════════════════════════════════════════════════════════════
 
-_BASE = Path(__file__).parent.parent
+_BASE = PROJECT_ROOT
 
 # ── 입력 데이터 ──────────────────────────────────────────────
 # 1. 학습 데이터 (피처 선택용 샘플을 쓸 경우 fs_sample_data 하위 참조)
-TRAIN_PATH    = str(_BASE / "data" / "06a_feature_engineering" / "train.parquet")
+TRAIN_PATH = data_path("06a_feature_engineering/train.parquet")
 # 2. 검증 및 테스트 데이터 (06a_feature_engineering 하위 참조)
-VAL_TUNE_PATH  = str(_BASE / "data" / "06a_feature_engineering" / "val_tune.parquet")
-VAL_CALIB_PATH = str(_BASE / "data" / "06a_feature_engineering" / "val_calib.parquet")
-TEST_PATH      = str(_BASE / "data" / "06a_feature_engineering" / "test.parquet")
+VAL_TUNE_PATH = data_path("06a_feature_engineering/val_tune.parquet")
+VAL_CALIB_PATH = data_path("06a_feature_engineering/val_calib.parquet")
+TEST_PATH = data_path("06a_feature_engineering/test.parquet")
 
 # 3. 사전 분할된 서브셋 데이터 (SEED에 따라 동적 결정)
-SUBSET_DIR = str(_BASE / "data" / "06b_subset_generation" / f"seed_{SEED}")
+SUBSET_DIR = data_path(f"06b_subset_generation/seed_{SEED}")
 VAL_TUNE_SAMPLED_PATH = str(Path(SUBSET_DIR) / "val_sampled.parquet")
+
+REQUIRED_DATA_PATHS = [
+    ("train feature data", "file", TRAIN_PATH),
+    ("val_tune feature data", "file", VAL_TUNE_PATH),
+    ("val_calib feature data", "file", VAL_CALIB_PATH),
+    ("test feature data", "file", TEST_PATH),
+    ("underbagging subset directory", "dir", SUBSET_DIR),
+]
 
 # 4. 학습 효율을 위한 검증 데이터 샘플링 (None이면 전체 사용)
 # 800만 건 PR-AUC 계산 병목 해결을 위해 100만~200만 권장
@@ -126,7 +148,7 @@ LGBM_PARAMS = dict(
     scale_pos_weight  = 1.0,
     random_state      = SEED,
     n_jobs            = -1,
-    device            = "gpu" if _HAS_GPU else "cpu",
+    device            = _LGBM_DEVICE,
     # ── [GPU 최적화] ──────────────────────────
     max_bin           = 63,    # GPU 연산 및 메모리 급상승
     gpu_use_dp        = False, # 배정밀도 미사용 (속도 향상)

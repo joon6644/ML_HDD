@@ -481,6 +481,290 @@ class EntityLevelEvaluator:
         plt.show()
 
 
+class SavedEnsemble:
+    """Inference wrapper for a saved underbagging ensemble."""
+
+    def __init__(self, models):
+        self.models = models
+
+    def predict_proba(self, df: pd.DataFrame, feature_cols: list[str]) -> np.ndarray:
+        return np.mean([m.predict_proba(df[feature_cols])[:, 1] for m in self.models], axis=0)
+
+
+def _jsonable(value):
+    if isinstance(value, (np.integer, np.floating)):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    if pd.isna(value):
+        return None
+    return value
+
+
+def _summarize_dataset(df: pd.DataFrame, cfg, *, label: str, path: str) -> dict:
+    n_rows = len(df)
+    n_pos = int(df[cfg.TARGET_COL].sum())
+    n_neg = int((df[cfg.TARGET_COL] == 0).sum())
+    summary = {"path": path, "rows": n_rows, "positives": n_pos, "negatives": n_neg}
+
+    print(f"[{label}]")
+    print(f"  path: {path}")
+    print(f"  rows: {n_rows:,}")
+    print(f"  positives: {n_pos:,}")
+    print(f"  negatives: {n_neg:,}")
+
+    if getattr(cfg, "DATE_COL", None) in df.columns:
+        dates = pd.to_datetime(df[cfg.DATE_COL])
+        summary["date_min"] = dates.min().isoformat()
+        summary["date_max"] = dates.max().isoformat()
+        print(f"  date_range: {dates.min()} ~ {dates.max()}")
+
+    if getattr(cfg, "SERIAL_COL", None) in df.columns:
+        n_entities = int(df[cfg.SERIAL_COL].nunique())
+        summary["entities"] = n_entities
+        print(f"  entities: {n_entities:,}")
+
+    return summary
+
+
+def _validate_columns(df: pd.DataFrame, required_cols: list[str], *, dataset_name: str) -> None:
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"{dataset_name} is missing {len(missing)} required columns: {missing[:20]}"
+        )
+
+
+def load_saved_ensemble(train_cfg, *, require_threshold: bool = False) -> dict:
+    """Load saved models, feature columns, and optionally threshold metadata."""
+    import json
+    import joblib
+    from pathlib import Path
+    from config.path_utils import validate_path_contract
+
+    save_dir = Path(train_cfg.MODEL_SAVE_DIR)
+    feature_cols_path = save_dir / "feature_cols.json"
+    threshold_path = save_dir / "best_threshold.json"
+    model_paths = sorted(save_dir.glob("subset_*.pkl"))
+
+    required_paths = [
+        ("model save directory", "dir", str(save_dir)),
+        ("feature columns", "file", str(feature_cols_path)),
+    ]
+    if require_threshold:
+        required_paths.append(("best threshold metadata", "file", str(threshold_path)))
+    validate_path_contract(required_paths)
+
+    if not model_paths:
+        raise FileNotFoundError(f"No subset model files found: {save_dir / 'subset_*.pkl'}")
+
+    expected_models = getattr(train_cfg, "SAMPLER_KWARGS", {}).get("n_subsets")
+    if expected_models is not None and len(model_paths) != expected_models:
+        raise ValueError(
+            f"Expected {expected_models} subset models, found {len(model_paths)} in {save_dir}"
+        )
+
+    with open(feature_cols_path, encoding="utf-8") as f:
+        feature_cols = json.load(f)
+
+    threshold_meta = None
+    threshold = None
+    if require_threshold:
+        with open(threshold_path, encoding="utf-8") as f:
+            threshold_meta = json.load(f)
+        threshold = float(threshold_meta["threshold"])
+
+        if threshold_meta.get("n_features") is not None and threshold_meta["n_features"] != len(feature_cols):
+            raise ValueError(
+                f"Threshold metadata feature count mismatch: "
+                f"{threshold_meta['n_features']} != {len(feature_cols)}"
+            )
+        if threshold_meta.get("model_files") is not None:
+            current_model_files = [p.name for p in model_paths]
+            if threshold_meta["model_files"] != current_model_files:
+                raise ValueError("Threshold metadata model_files do not match current model files.")
+
+    print("[Model Artifact Contract]")
+    print(f"  model_dir: {save_dir}")
+    print(f"  feature_cols: {feature_cols_path} ({len(feature_cols)} features)")
+    if require_threshold:
+        print(f"  threshold_path: {threshold_path}")
+        print(f"  threshold: {threshold:.6f}")
+        print(f"  threshold_source_val_calib: {threshold_meta.get('val_calib_path')}")
+    for p in model_paths:
+        print(f"  model: {p.name} ({p.stat().st_size:,} bytes)")
+
+    models = [joblib.load(p) for p in model_paths]
+    ensemble = SavedEnsemble(models)
+
+    return {
+        "save_dir": save_dir,
+        "feature_cols_path": feature_cols_path,
+        "threshold_path": threshold_path,
+        "model_paths": model_paths,
+        "feature_cols": feature_cols,
+        "threshold": threshold,
+        "threshold_meta": threshold_meta,
+        "ensemble": ensemble,
+    }
+
+
+def run_threshold_tuning_from_saved_model(
+    eval_cfg,
+    train_cfg,
+    *,
+    show_plot: bool = True,
+    save: bool = True,
+) -> dict:
+    """README section 7: tune threshold on val_calib using a saved ensemble."""
+    import json
+    from datetime import datetime
+    from config.path_utils import validate_path_contract
+
+    artifacts = load_saved_ensemble(train_cfg, require_threshold=False)
+    feature_cols = artifacts["feature_cols"]
+    ensemble = artifacts["ensemble"]
+
+    validate_path_contract([("val_calib feature data", "file", eval_cfg.VAL_CALIB_PATH)])
+
+    df_calib = pd.read_parquet(eval_cfg.VAL_CALIB_PATH)
+    _validate_columns(df_calib, feature_cols + [eval_cfg.TARGET_COL], dataset_name="val_calib")
+    calib_summary = _summarize_dataset(
+        df_calib, eval_cfg, label="Calibration Data", path=eval_cfg.VAL_CALIB_PATH
+    )
+
+    y_calib_prob = ensemble.predict_proba(df_calib, feature_cols)
+
+    tuner = ThresholdTuner(max_fpr=eval_cfg.MAX_FPR, n_grid=eval_cfg.THRESHOLD_N_GRID)
+    tuner_result = tuner.fit(df_calib[eval_cfg.TARGET_COL].values, y_calib_prob)
+    if show_plot:
+        tuner.plot()
+
+    threshold = float(tuner.best_threshold)
+    print(f"Best threshold: {threshold:.4f}")
+
+    threshold_metadata = {
+        "threshold": threshold,
+        "tuning_result": {k: _jsonable(v) for k, v in tuner_result.items()},
+        "max_fpr": eval_cfg.MAX_FPR,
+        "threshold_n_grid": eval_cfg.THRESHOLD_N_GRID,
+        "target_col": eval_cfg.TARGET_COL,
+        "val_calib_path": eval_cfg.VAL_CALIB_PATH,
+        "val_calib_rows": calib_summary["rows"],
+        "val_calib_positives": calib_summary["positives"],
+        "val_calib_negatives": calib_summary["negatives"],
+        "model_dir": str(artifacts["save_dir"]),
+        "model_files": [p.name for p in artifacts["model_paths"]],
+        "feature_cols_path": str(artifacts["feature_cols_path"]),
+        "n_features": len(feature_cols),
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+
+    if save:
+        with open(artifacts["threshold_path"], "w", encoding="utf-8") as f:
+            json.dump(threshold_metadata, f, ensure_ascii=False, indent=2)
+        print(f"Saved threshold metadata: {artifacts['threshold_path']}")
+
+    return {
+        "tuner": tuner,
+        "threshold": threshold,
+        "tuner_result": tuner_result,
+        "threshold_metadata": threshold_metadata,
+        "artifacts": artifacts,
+        "calib_summary": calib_summary,
+    }
+
+
+def run_final_evaluation_from_saved_model(
+    eval_cfg,
+    train_cfg,
+    *,
+    show_plots: bool = True,
+    save: bool = True,
+) -> dict:
+    """README section 8: evaluate a saved ensemble on the held-out test set."""
+    import json
+    from datetime import datetime
+    from config.path_utils import validate_path_contract
+
+    artifacts = load_saved_ensemble(train_cfg, require_threshold=True)
+    feature_cols = artifacts["feature_cols"]
+    ensemble = artifacts["ensemble"]
+    threshold = artifacts["threshold"]
+
+    validate_path_contract([("test feature data", "file", eval_cfg.TEST_PATH)])
+
+    df_test = pd.read_parquet(eval_cfg.TEST_PATH)
+    _validate_columns(
+        df_test,
+        feature_cols + [eval_cfg.TARGET_COL, eval_cfg.SERIAL_COL, eval_cfg.DATE_COL],
+        dataset_name="test data",
+    )
+    test_summary = _summarize_dataset(
+        df_test, eval_cfg, label="Test Data", path=eval_cfg.TEST_PATH
+    )
+
+    y_test_prob = ensemble.predict_proba(df_test, feature_cols)
+
+    row_result = evaluate_row_level(
+        df_test[eval_cfg.TARGET_COL].values,
+        y_test_prob,
+        threshold,
+        title="Test Set",
+    )
+
+    ev = EntityLevelEvaluator(
+        serial_col=eval_cfg.SERIAL_COL,
+        date_col=eval_cfg.DATE_COL,
+        target_col=eval_cfg.TARGET_COL,
+    )
+    entity_result = ev.evaluate(df_test, y_test_prob, threshold)
+    if show_plots:
+        EntityLevelEvaluator.plot(entity_result)
+
+    entity_df = entity_result["entity_df"]
+    miss_list = entity_df[(entity_df["is_failure"] == 1) & (entity_df["has_alarm"] == 0)]
+    print(f"Missed failure entities: {len(miss_list)}")
+
+    entity_summary = {k: _jsonable(v) for k, v in entity_result.items() if k != "entity_df"}
+    evaluation_metadata = {
+        "threshold": threshold,
+        "threshold_path": str(artifacts["threshold_path"]),
+        "threshold_metadata": artifacts["threshold_meta"],
+        "test_path": eval_cfg.TEST_PATH,
+        "test_rows": test_summary["rows"],
+        "test_positives": test_summary["positives"],
+        "test_negatives": test_summary["negatives"],
+        "test_entities": test_summary.get("entities"),
+        "model_dir": str(artifacts["save_dir"]),
+        "model_files": [p.name for p in artifacts["model_paths"]],
+        "feature_cols_path": str(artifacts["feature_cols_path"]),
+        "n_features": len(feature_cols),
+        "row_result": {k: _jsonable(v) for k, v in row_result.items()},
+        "entity_result": entity_summary,
+        "missed_failure_entities": int(len(miss_list)),
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+
+    result_path = artifacts["save_dir"] / "final_evaluation.json"
+    if save:
+        with open(result_path, "w", encoding="utf-8") as f:
+            json.dump(evaluation_metadata, f, ensure_ascii=False, indent=2)
+        print(f"Saved final evaluation metadata: {result_path}")
+
+    return {
+        "row_result": row_result,
+        "entity_result": entity_result,
+        "miss_list": miss_list,
+        "evaluation_metadata": evaluation_metadata,
+        "result_path": result_path,
+        "artifacts": artifacts,
+        "test_summary": test_summary,
+    }
+
+
 # ════════════════════════════════════════════════════════════
 #  MAIN PIPELINE  (노트북 한 셀 호출용)
 # ════════════════════════════════════════════════════════════
@@ -507,6 +791,9 @@ def run_evaluation(
     dict: tuner, threshold, row_result, entity_result
     """
     import pandas as pd
+    from config.path_utils import validate_path_contract
+
+    validate_path_contract(list(getattr(cfg, "REQUIRED_DATA_PATHS", [])))
 
     # ── 1. 데이터 로드 ────────────────────────────────────────
     print("📂  평가 데이터 로드 중...")
