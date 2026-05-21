@@ -16,10 +16,38 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_ROOT = Path(os.environ.get("ML_HDD_DATA_DIR", PROJECT_ROOT / "data")).expanduser()
 
+# 06a_feature_engineering.ipynb 출력 디렉터리 (train/val_*/test.parquet)
+FE_SPLIT_REL = "split_group_stratified"
+
 
 def data_path(relative_path: str) -> str:
     """Return the canonical path under the configured data root."""
     return str(DATA_ROOT / relative_path)
+
+
+def fe_data_path(filename: str) -> str:
+    """Feature-engineered split parquet (06a 노트북 산출물)."""
+    return data_path(f"{FE_SPLIT_REL}/{filename}")
+
+
+def val_calib_missing_hint(val_calib_path: str | Path) -> str:
+    """val_calib.parquet 가 없을 때 선행 노트북 안내 문구."""
+    calib = Path(val_calib_path)
+    raw = DATA_ROOT / FE_SPLIT_REL / "val_calib_raw.parquet"
+    lines = [f"Missing: {calib}"]
+    if raw.is_file():
+        lines.append(
+            "Found val_calib_raw.parquet — run notebooks/06a_feature_engineering.ipynb "
+            "to create val_calib.parquet."
+        )
+    else:
+        lines.append(
+            "Also missing val_calib_raw.parquet — place split files under "
+            f"{DATA_ROOT / FE_SPLIT_REL} (see README 데이터 분할 후), "
+            "then run notebooks/03_data_splitting.ipynb and "
+            "notebooks/06a_feature_engineering.ipynb."
+        )
+    return "\n".join(lines)
 
 
 def require_data_file(relative_path: str, *, label: str | None = None) -> str:

@@ -1,15 +1,16 @@
 """
 eval_core.py  ─  임계값 튜닝 + 모델 평가 엔진  (README §7, §8)
 ──────────────────────────────────────────────────────────────
-§7  ThresholdTuner      : val_calib 기반 FPR 제약 최적 임계값 탐색
+§7  ThresholdTuner      : val_calib 그리드서치 → FPR별 Recall 표 → FPR–Recall 곡선
 §8.1 evaluate_row_level : 행 단위 PR-AUC / MCC / F1 평가
 §8.2 EntityLevelEvaluator : 개체 단위 롤링 평가 (Hit/Miss/FA + Lead Time)
 
-설정은 config/eval_config.py 에서만.
+설정은 config/threshold_config.py, config/final_eval_config.py 에서만.
 """
 
 from __future__ import annotations
 
+import time
 import warnings
 from typing import Optional
 
@@ -43,26 +44,108 @@ _set_korean_font()
 SEP = "=" * 65
 
 
+def _log(msg: str, *, indent: int = 0) -> None:
+    prefix = "  " * indent
+    print(f"{prefix}{msg}", flush=True)
+
+
+def _log_step(step: str, detail: str = "") -> None:
+    line = f"[§7] {step}"
+    if detail:
+        line += f" — {detail}"
+    _log(line)
+
+
+def save_threshold_tuning_csvs(
+    tuner: "ThresholdTuner",
+    cfg,
+    out_dir,
+) -> dict[str, str]:
+    """§7 튜닝 결과를 CSV로 저장. 반환: {fpr_recall_table, threshold_grid} 경로."""
+    from pathlib import Path
+
+    if tuner._result is None or tuner._grid_df is None:
+        raise RuntimeError("ThresholdTuner.fit() 이후에만 CSV 저장 가능합니다.")
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    table_name = getattr(cfg, "FPR_RECALL_TABLE_CSV", "fpr_recall_table.csv")
+    grid_name = getattr(cfg, "THRESHOLD_GRID_CSV", "threshold_grid.csv")
+
+    table_rows = tuner._result["fpr_recall_table"]
+    df_table = pd.DataFrame(table_rows)
+    df_table.insert(0, "fpr_cap_pct", (df_table["fpr_cap"] * 100).round(3))
+    df_table["fpr_actual_pct"] = (df_table["fpr_actual"] * 100).round(4)
+    df_table["recall_pct"] = (df_table["recall"] * 100).round(4)
+
+    path_table = out_dir / table_name
+    path_grid = out_dir / grid_name
+    df_table.to_csv(path_table, index=False, encoding="utf-8-sig")
+    tuner._grid_df.to_csv(path_grid, index=False, encoding="utf-8-sig")
+
+    return {
+        "fpr_recall_table": str(path_table),
+        "threshold_grid": str(path_grid),
+    }
+
+
 # ════════════════════════════════════════════════════════════
 #  §7.  THRESHOLD TUNER
 #  val_calib 에서 그리드서치 → FPR 상한 내 Recall 최대화
 # ════════════════════════════════════════════════════════════
 
+def summarize_recall_at_fpr_levels(
+    grid_df: pd.DataFrame,
+    fpr_levels: list[float],
+    *,
+    operating_fpr: float | None = None,
+) -> list[dict]:
+    """각 FPR 상한에서 Recall을 최대화한 운영점 요약 (README §7 간판 표)."""
+    rows = []
+    for cap in fpr_levels:
+        valid = grid_df[grid_df["fpr"] <= cap]
+        if len(valid) == 0:
+            best_row = grid_df.loc[grid_df["fpr"].idxmin()]
+        else:
+            best_row = valid.loc[valid["recall"].idxmax()]
+
+        rows.append({
+            "fpr_cap": cap,
+            "recall": float(best_row["recall"]),
+            "fpr_actual": float(best_row["fpr"]),
+            "precision": float(best_row["precision"]),
+            "f1": float(best_row["f1"]),
+            "threshold": float(best_row["threshold"]),
+            "is_save_point": operating_fpr is not None and cap == operating_fpr,
+        })
+    return rows
+
+
 class ThresholdTuner:
     """
-    FPR ≤ max_fpr 제약 하에서 Recall 을 최대화하는 임계값 탐색.
+    val_calib 그리드서치 후 FPR 상한별 Recall 표를 출력하고 FPR–Recall 곡선을 그림.
 
     Parameters
     ----------
-    max_fpr   : FPR 상한 (예: 0.01 = 1%)
-    n_grid    : 임계값 탐색 격자 수
+    fpr_levels            : README §7 간판 표에 쓸 FPR 상한 목록 (필수)
+    n_grid                : 임계값 탐색 격자 수
+    save_operating_fpr_cap: 08 저장용으로 표에서 선택할 FPR 상한 (예: 0.01). None이면 미선택
     """
 
-    def __init__(self, max_fpr: float = 0.01, n_grid: int = 1000):
-        self.max_fpr = max_fpr
-        self.n_grid  = n_grid
-        self._result:   Optional[dict]         = None
-        self._grid_df:  Optional[pd.DataFrame] = None
+    def __init__(
+        self,
+        fpr_levels: list[float],
+        n_grid: int = 1000,
+        save_operating_fpr_cap: float | None = None,
+    ):
+        if not fpr_levels:
+            raise ValueError("fpr_levels must be a non-empty list (e.g. [0.001, 0.005, 0.01, 0.05])")
+        self.fpr_levels = list(fpr_levels)
+        self.n_grid = n_grid
+        self.save_operating_fpr_cap = save_operating_fpr_cap
+        self._result: Optional[dict] = None
+        self._grid_df: Optional[pd.DataFrame] = None
 
     # ----------------------------------------------------------
     def fit(self, y_true: np.ndarray, y_prob: np.ndarray) -> dict:
@@ -71,16 +154,24 @@ class ThresholdTuner:
 
         Returns
         -------
-        dict: threshold, recall, fpr, precision, f1, mcc, pr_auc
+        dict: threshold, recall, fpr, precision, f1, pr_auc, fpr_recall_table
         """
         y_true = np.asarray(y_true)
         n_pos  = int(y_true.sum())
         n_neg  = int((y_true == 0).sum())
+        n_rows = len(y_true)
 
         thresholds = np.linspace(0.0, 1.0, self.n_grid + 1)
+        n_thr = len(thresholds)
+        _log(
+            f"임계값 그리드 서치: {n_thr:,}개 후보 × {n_rows:,}행 "
+            f"(FPR 표: {[f'{c*100:.1f}%' for c in self.fpr_levels]})",
+            indent=1,
+        )
+        t_grid = time.perf_counter()
 
         records = []
-        for thr in thresholds:
+        for i, thr in enumerate(thresholds):
             y_pred = (y_prob >= thr).astype(int)
             tp = int(((y_pred == 1) & (y_true == 1)).sum())
             fp = int(((y_pred == 1) & (y_true == 0)).sum())
@@ -97,84 +188,116 @@ class ThresholdTuner:
                                 precision=precision, f1=f1,
                                 tp=tp, fp=fp, fn=fn, tn=tn))
 
+            if i == 0 or i == n_thr - 1 or (i + 1) % 250 == 0:
+                elapsed = time.perf_counter() - t_grid
+                pct = 100.0 * (i + 1) / n_thr
+                _log(f"... {i + 1:,}/{n_thr:,} ({pct:.0f}%) — {elapsed:.1f}s 경과", indent=2)
+
+        _log(f"그리드 서치 완료 ({time.perf_counter() - t_grid:.1f}s)", indent=1)
+
         self._grid_df = pd.DataFrame(records)
+        _log("PR-AUC 계산 중...", indent=1)
+        pr_auc = average_precision_score(y_true, y_prob)
+        _log("FPR별 Recall 표 집계 중...", indent=1)
 
-        valid = self._grid_df[self._grid_df["fpr"] <= self.max_fpr]
-        if len(valid) == 0:
-            print(f"⚠️  FPR ≤ {self.max_fpr:.1%} 를 만족하는 임계값 없음 → 최소 FPR 임계값 선택")
-            best_row = self._grid_df.loc[self._grid_df["fpr"].idxmin()]
-        else:
-            best_row = valid.loc[valid["recall"].idxmax()]
+        fpr_recall_table = summarize_recall_at_fpr_levels(
+            self._grid_df,
+            self.fpr_levels,
+            operating_fpr=self.save_operating_fpr_cap,
+        )
 
-        best_thr  = float(best_row["threshold"])
-        y_pred_b  = (y_prob >= best_thr).astype(int)
-        mcc       = matthews_corrcoef(y_true, y_pred_b)
-        pr_auc    = average_precision_score(y_true, y_prob)
+        save_row = None
+        if self.save_operating_fpr_cap is not None:
+            save_row = next(
+                (r for r in fpr_recall_table if r["fpr_cap"] == self.save_operating_fpr_cap),
+                None,
+            )
+            if save_row is None:
+                raise ValueError(
+                    f"save_operating_fpr_cap={self.save_operating_fpr_cap} not in fpr_levels"
+                )
 
         self._result = dict(
-            threshold         = best_thr,
-            recall            = float(best_row["recall"]),
-            fpr               = float(best_row["fpr"]),
-            precision         = float(best_row["precision"]),
-            f1                = float(best_row["f1"]),
-            mcc               = float(mcc),
-            pr_auc            = float(pr_auc),
-            max_fpr_constraint= self.max_fpr,
-            n_pos=n_pos, n_neg=n_neg,
+            threshold=float(save_row["threshold"]) if save_row else None,
+            recall=float(save_row["recall"]) if save_row else None,
+            fpr=float(save_row["fpr_actual"]) if save_row else None,
+            precision=float(save_row["precision"]) if save_row else None,
+            f1=float(save_row["f1"]) if save_row else None,
+            pr_auc=float(pr_auc),
+            save_operating_fpr_cap=self.save_operating_fpr_cap,
+            fpr_recall_table=fpr_recall_table,
+            n_pos=n_pos,
+            n_neg=n_neg,
         )
-        self._print_result()
+
+        self.print_table()
         return self._result
 
     # ----------------------------------------------------------
-    def _print_result(self):
+    def print_table(self) -> None:
+        """README §7 간판 표 (FPR 상한별 Recall) — 그래프보다 먼저 출력."""
+        if self._result is None:
+            raise RuntimeError("fit() 을 먼저 호출하세요.")
         r = self._result
+        table = r["fpr_recall_table"]
+
         print(SEP)
-        print(f"  THRESHOLD TUNING  (FPR 상한 = {r['max_fpr_constraint']:.1%})")
+        print("  THRESHOLD TUNING — val_calib (README §7)")
         print(SEP)
-        print(f"  최적 임계값   : {r['threshold']:.4f}")
-        print(f"  Recall (탐지율): {r['recall']:.4f}  ({r['recall']*100:.2f}%)")
-        print(f"  FPR   (오탐율) : {r['fpr']:.4f}  ({r['fpr']*100:.2f}%)")
-        print(f"  Precision      : {r['precision']:.4f}")
-        print(f"  F1-score       : {r['f1']:.4f}")
-        print(f"  MCC            : {r['mcc']:.4f}")
-        print(f"  PR-AUC         : {r['pr_auc']:.5f}")
-        print(f"\n  → FPR {r['fpr']*100:.2f}%에서 Recall {r['recall']*100:.2f}%")
+        print(f"  PR-AUC (확률 품질, 임계값 무관): {r['pr_auc']:.5f}")
+        print(f"  표본: 고장 {r['n_pos']:,}행 / 정상 {r['n_neg']:,}행\n")
+
+        print("  [FPR 상한별 최대 Recall — 간판 표]")
+        print(f"  {'FPR 상한':>10}  {'Recall':>10}  {'실제 FPR':>10}  {'threshold':>10}")
+        print(f"  {'-'*10}  {'-'*10}  {'-'*10}  {'-'*10}")
+        for row in table:
+            cap_pct = row["fpr_cap"] * 100
+            rec_pct = row["recall"] * 100
+            fpr_pct = row["fpr_actual"] * 100
+            tag = " ← 08 저장" if row.get("is_save_point") else ""
+            print(
+                f"  {cap_pct:>9.1f}%  {rec_pct:>9.2f}%  {fpr_pct:>9.2f}%  {row['threshold']:>10.4f}{tag}"
+            )
+            print(f"      → FPR {fpr_pct:.2f}%에서 Recall {rec_pct:.2f}%")
+
+        if r.get("threshold") is not None and r.get("save_operating_fpr_cap") is not None:
+            cap = r["save_operating_fpr_cap"] * 100
+            print(
+                f"\n  [08 저장용] FPR 상한 {cap:.1f}% 행 → threshold = {r['threshold']:.4f}"
+            )
         print(SEP)
 
     # ----------------------------------------------------------
     def plot(self):
-        """Recall / FPR vs Threshold 커브 + FPR-Recall Trade-off 플롯."""
+        """README §7: FPR(x)–Recall(y) 곡선 (표의 각 운영점 표시). fit()·print_table() 이후 호출."""
         if self._grid_df is None:
             raise RuntimeError("fit() 을 먼저 호출하세요.")
 
-        gdf     = self._grid_df
-        best    = self._result
+        gdf = self._grid_df
+        table = self._result["fpr_recall_table"]
 
-        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
-        # ── 왼쪽: Recall & FPR vs Threshold
-        ax = axes[0]
-        ax.plot(gdf["threshold"], gdf["recall"], color="steelblue", lw=2, label="Recall (탐지율)")
-        ax.plot(gdf["threshold"], gdf["fpr"],    color="tomato",    lw=2, label="FPR (오탐율)")
-        ax.axhline(self.max_fpr, color="tomato",  ls="--", alpha=0.6, label=f"FPR 상한 {self.max_fpr:.1%}")
-        ax.axvline(best["threshold"], color="green", ls=":", lw=2,
-                   label=f"최적 임계값 {best['threshold']:.4f}")
-        ax.set_xlabel("Threshold"); ax.set_ylabel("Rate")
-        ax.set_title("Recall & FPR vs Threshold", fontweight="bold")
-        ax.legend(); ax.grid(alpha=0.3)
-
-        # ── 오른쪽: FPR-Recall Trade-off
-        ax = axes[1]
-        ax.plot(gdf["fpr"], gdf["recall"], color="purple", lw=2)
-        ax.axvline(self.max_fpr, color="tomato", ls="--", alpha=0.6,
-                   label=f"FPR 상한 {self.max_fpr:.1%}")
-        ax.scatter([best["fpr"]], [best["recall"]], color="green", s=120, zorder=5,
-                   label=f"최적점 Recall={best['recall']:.3f}")
-        ax.set_xlabel("FPR (오탐율)"); ax.set_ylabel("Recall (탐지율)")
-        ax.set_title("Recall vs FPR Trade-off", fontweight="bold")
-        ax.legend(); ax.grid(alpha=0.3)
-
-        plt.suptitle("임계값 튜닝 결과 (val_calib 기반)", fontsize=13, fontweight="bold")
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.plot(gdf["fpr"], gdf["recall"], color="purple", lw=2, label="FPR–Recall curve")
+        for row in table:
+            ax.scatter(
+                row["fpr_actual"],
+                row["recall"],
+                s=100,
+                zorder=5,
+                label=f"FPR≤{row['fpr_cap']*100:.1f}%",
+            )
+            ax.annotate(
+                f"{row['fpr_cap']*100:.1f}%\nR={row['recall']:.2f}",
+                (row["fpr_actual"], row["recall"]),
+                textcoords="offset points",
+                xytext=(6, 6),
+                fontsize=9,
+            )
+        ax.set_xlabel("FPR (오탐율)")
+        ax.set_ylabel("Recall (탐지율, TPR)")
+        ax.set_title("Recall vs FPR (val_calib)", fontweight="bold")
+        ax.legend(loc="lower right", fontsize=8)
+        ax.grid(alpha=0.3)
         plt.tight_layout()
         plt.show()
 
@@ -182,7 +305,12 @@ class ThresholdTuner:
     def best_threshold(self) -> float:
         if self._result is None:
             raise RuntimeError("fit() 을 먼저 호출하세요.")
-        return self._result["threshold"]
+        thr = self._result.get("threshold")
+        if thr is None:
+            raise RuntimeError(
+                "저장용 threshold 없음. threshold_config.SAVE_OPERATING_FPR_CAP 을 설정하세요."
+            )
+        return float(thr)
 
 
 # ════════════════════════════════════════════════════════════
@@ -487,8 +615,26 @@ class SavedEnsemble:
     def __init__(self, models):
         self.models = models
 
-    def predict_proba(self, df: pd.DataFrame, feature_cols: list[str]) -> np.ndarray:
-        return np.mean([m.predict_proba(df[feature_cols])[:, 1] for m in self.models], axis=0)
+    def predict_proba(
+        self,
+        df: pd.DataFrame,
+        feature_cols: list[str],
+        *,
+        verbose: bool = True,
+    ) -> np.ndarray:
+        n_rows = len(df)
+        n_models = len(self.models)
+        probs = []
+        for i, m in enumerate(self.models):
+            if verbose:
+                _log(f"모델 {i + 1}/{n_models} 예측 중 ({n_rows:,}행)...", indent=2)
+                t0 = time.perf_counter()
+            probs.append(m.predict_proba(df[feature_cols])[:, 1])
+            if verbose:
+                _log(f"모델 {i + 1}/{n_models} 완료 ({time.perf_counter() - t0:.1f}s)", indent=2)
+        if verbose:
+            _log("앙상블 soft-voting 평균 계산...", indent=2)
+        return np.mean(probs, axis=0)
 
 
 def _jsonable(value):
@@ -537,14 +683,14 @@ def _validate_columns(df: pd.DataFrame, required_cols: list[str], *, dataset_nam
         )
 
 
-def load_saved_ensemble(train_cfg, *, require_threshold: bool = False) -> dict:
+def load_saved_ensemble(cfg, *, require_threshold: bool = False) -> dict:
     """Load saved models, feature columns, and optionally threshold metadata."""
     import json
     import joblib
     from pathlib import Path
     from config.path_utils import validate_path_contract
 
-    save_dir = Path(train_cfg.MODEL_SAVE_DIR)
+    save_dir = Path(cfg.MODEL_SAVE_DIR)
     feature_cols_path = save_dir / "feature_cols.json"
     threshold_path = save_dir / "best_threshold.json"
     model_paths = sorted(save_dir.glob("subset_*.pkl"))
@@ -560,7 +706,7 @@ def load_saved_ensemble(train_cfg, *, require_threshold: bool = False) -> dict:
     if not model_paths:
         raise FileNotFoundError(f"No subset model files found: {save_dir / 'subset_*.pkl'}")
 
-    expected_models = getattr(train_cfg, "SAMPLER_KWARGS", {}).get("n_subsets")
+    expected_models = getattr(cfg, "N_SUBSETS", None)
     if expected_models is not None and len(model_paths) != expected_models:
         raise ValueError(
             f"Expected {expected_models} subset models, found {len(model_paths)} in {save_dir}"
@@ -596,7 +742,12 @@ def load_saved_ensemble(train_cfg, *, require_threshold: bool = False) -> dict:
     for p in model_paths:
         print(f"  model: {p.name} ({p.stat().st_size:,} bytes)")
 
-    models = [joblib.load(p) for p in model_paths]
+    models = []
+    for i, p in enumerate(model_paths):
+        _log(f"joblib 로드 {i + 1}/{len(model_paths)}: {p.name}", indent=1)
+        t0 = time.perf_counter()
+        models.append(joblib.load(p))
+        _log(f"  → {time.perf_counter() - t0:.1f}s", indent=2)
     ensemble = SavedEnsemble(models)
 
     return {
@@ -612,8 +763,7 @@ def load_saved_ensemble(train_cfg, *, require_threshold: bool = False) -> dict:
 
 
 def run_threshold_tuning_from_saved_model(
-    eval_cfg,
-    train_cfg,
+    cfg,
     *,
     show_plot: bool = True,
     save: bool = True,
@@ -623,35 +773,67 @@ def run_threshold_tuning_from_saved_model(
     from datetime import datetime
     from config.path_utils import validate_path_contract
 
-    artifacts = load_saved_ensemble(train_cfg, require_threshold=False)
+    from pathlib import Path
+    from config.path_utils import val_calib_missing_hint
+
+    pipeline_t0 = time.perf_counter()
+    _log_step("시작", "임계값 튜닝 (val_calib)")
+
+    calib_path = Path(cfg.VAL_CALIB_PATH)
+    if not calib_path.is_file():
+        raise FileNotFoundError(val_calib_missing_hint(calib_path))
+
+    _log_step("1/5", "경로·산출물 확인")
+    validate_path_contract(list(getattr(cfg, "REQUIRED_DATA_PATHS", [])))
+
+    _log_step("2/5", "앙상블 모델 로드")
+    artifacts = load_saved_ensemble(cfg, require_threshold=False)
     feature_cols = artifacts["feature_cols"]
     ensemble = artifacts["ensemble"]
 
-    validate_path_contract([("val_calib feature data", "file", eval_cfg.VAL_CALIB_PATH)])
-
-    df_calib = pd.read_parquet(eval_cfg.VAL_CALIB_PATH)
-    _validate_columns(df_calib, feature_cols + [eval_cfg.TARGET_COL], dataset_name="val_calib")
+    _log_step("3/5", f"val_calib parquet 읽기 — {calib_path.name}")
+    t_read = time.perf_counter()
+    df_calib = pd.read_parquet(cfg.VAL_CALIB_PATH)
+    _log(f"로드 완료: {len(df_calib):,}행 ({time.perf_counter() - t_read:.1f}s)", indent=1)
+    _validate_columns(df_calib, feature_cols + [cfg.TARGET_COL], dataset_name="val_calib")
     calib_summary = _summarize_dataset(
-        df_calib, eval_cfg, label="Calibration Data", path=eval_cfg.VAL_CALIB_PATH
+        df_calib, cfg, label="Calibration Data", path=cfg.VAL_CALIB_PATH
     )
 
-    y_calib_prob = ensemble.predict_proba(df_calib, feature_cols)
+    _log_step(
+        "4/5",
+        f"앙상블 추론 — {len(df_calib):,}행 × {len(ensemble.models)}모델 "
+        "(가장 오래 걸릴 수 있음)",
+    )
+    t_inf = time.perf_counter()
+    y_calib_prob = ensemble.predict_proba(df_calib, feature_cols, verbose=True)
+    _log(f"추론 전체 완료 ({time.perf_counter() - t_inf:.1f}s)", indent=1)
 
-    tuner = ThresholdTuner(max_fpr=eval_cfg.MAX_FPR, n_grid=eval_cfg.THRESHOLD_N_GRID)
-    tuner_result = tuner.fit(df_calib[eval_cfg.TARGET_COL].values, y_calib_prob)
+    fpr_levels = list(cfg.FPR_LEVELS)
+    save_cap = getattr(cfg, "SAVE_OPERATING_FPR_CAP", getattr(cfg, "MAX_FPR", None))
+    _log_step("5/5", f"임계값 그리드 + FPR 표 (n_grid={cfg.THRESHOLD_N_GRID})")
+    tuner = ThresholdTuner(
+        fpr_levels=fpr_levels,
+        n_grid=cfg.THRESHOLD_N_GRID,
+        save_operating_fpr_cap=save_cap,
+    )
+    tuner_result = tuner.fit(df_calib[cfg.TARGET_COL].values, y_calib_prob)
+
     if show_plot:
+        _log("\n[FPR–Recall 곡선 그리기]", indent=0)
         tuner.plot()
 
-    threshold = float(tuner.best_threshold)
-    print(f"Best threshold: {threshold:.4f}")
+    threshold = float(tuner.best_threshold) if save_cap is not None else None
 
     threshold_metadata = {
         "threshold": threshold,
         "tuning_result": {k: _jsonable(v) for k, v in tuner_result.items()},
-        "max_fpr": eval_cfg.MAX_FPR,
-        "threshold_n_grid": eval_cfg.THRESHOLD_N_GRID,
-        "target_col": eval_cfg.TARGET_COL,
-        "val_calib_path": eval_cfg.VAL_CALIB_PATH,
+        "save_operating_fpr_cap": save_cap,
+        "fpr_levels": fpr_levels,
+        "fpr_recall_table": tuner_result.get("fpr_recall_table"),
+        "threshold_n_grid": cfg.THRESHOLD_N_GRID,
+        "target_col": cfg.TARGET_COL,
+        "val_calib_path": cfg.VAL_CALIB_PATH,
         "val_calib_rows": calib_summary["rows"],
         "val_calib_positives": calib_summary["positives"],
         "val_calib_negatives": calib_summary["negatives"],
@@ -662,24 +844,37 @@ def run_threshold_tuning_from_saved_model(
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
 
+    csv_paths: dict[str, str] = {}
     if save:
-        with open(artifacts["threshold_path"], "w", encoding="utf-8") as f:
-            json.dump(threshold_metadata, f, ensure_ascii=False, indent=2)
-        print(f"Saved threshold metadata: {artifacts['threshold_path']}")
+        result_dir = getattr(cfg, "THRESHOLD_RESULT_DIR", None) or artifacts["save_dir"]
+        _log("CSV 저장 중...", indent=1)
+        csv_paths = save_threshold_tuning_csvs(tuner, cfg, result_dir)
+        for label, path in csv_paths.items():
+            _log(f"  {label}: {path}", indent=2)
+
+        if threshold is None:
+            print("⚠️  SAVE_OPERATING_FPR_CAP=None — best_threshold.json 미저장")
+        else:
+            threshold_metadata["csv_paths"] = csv_paths
+            with open(artifacts["threshold_path"], "w", encoding="utf-8") as f:
+                json.dump(threshold_metadata, f, ensure_ascii=False, indent=2)
+            print(f"Saved threshold metadata: {artifacts['threshold_path']}")
+
+    _log_step("완료", f"총 소요 {time.perf_counter() - pipeline_t0:.1f}s")
 
     return {
         "tuner": tuner,
         "threshold": threshold,
         "tuner_result": tuner_result,
         "threshold_metadata": threshold_metadata,
+        "csv_paths": csv_paths,
         "artifacts": artifacts,
         "calib_summary": calib_summary,
     }
 
 
 def run_final_evaluation_from_saved_model(
-    eval_cfg,
-    train_cfg,
+    cfg,
     *,
     show_plots: bool = True,
     save: bool = True,
@@ -689,36 +884,36 @@ def run_final_evaluation_from_saved_model(
     from datetime import datetime
     from config.path_utils import validate_path_contract
 
-    artifacts = load_saved_ensemble(train_cfg, require_threshold=True)
+    validate_path_contract(list(getattr(cfg, "REQUIRED_DATA_PATHS", [])))
+
+    artifacts = load_saved_ensemble(cfg, require_threshold=True)
     feature_cols = artifacts["feature_cols"]
     ensemble = artifacts["ensemble"]
     threshold = artifacts["threshold"]
 
-    validate_path_contract([("test feature data", "file", eval_cfg.TEST_PATH)])
-
-    df_test = pd.read_parquet(eval_cfg.TEST_PATH)
+    df_test = pd.read_parquet(cfg.TEST_PATH)
     _validate_columns(
         df_test,
-        feature_cols + [eval_cfg.TARGET_COL, eval_cfg.SERIAL_COL, eval_cfg.DATE_COL],
+        feature_cols + [cfg.TARGET_COL, cfg.SERIAL_COL, cfg.DATE_COL],
         dataset_name="test data",
     )
     test_summary = _summarize_dataset(
-        df_test, eval_cfg, label="Test Data", path=eval_cfg.TEST_PATH
+        df_test, cfg, label="Test Data", path=cfg.TEST_PATH
     )
 
     y_test_prob = ensemble.predict_proba(df_test, feature_cols)
 
     row_result = evaluate_row_level(
-        df_test[eval_cfg.TARGET_COL].values,
+        df_test[cfg.TARGET_COL].values,
         y_test_prob,
         threshold,
         title="Test Set",
     )
 
     ev = EntityLevelEvaluator(
-        serial_col=eval_cfg.SERIAL_COL,
-        date_col=eval_cfg.DATE_COL,
-        target_col=eval_cfg.TARGET_COL,
+        serial_col=cfg.SERIAL_COL,
+        date_col=cfg.DATE_COL,
+        target_col=cfg.TARGET_COL,
     )
     entity_result = ev.evaluate(df_test, y_test_prob, threshold)
     if show_plots:
@@ -733,7 +928,7 @@ def run_final_evaluation_from_saved_model(
         "threshold": threshold,
         "threshold_path": str(artifacts["threshold_path"]),
         "threshold_metadata": artifacts["threshold_meta"],
-        "test_path": eval_cfg.TEST_PATH,
+        "test_path": cfg.TEST_PATH,
         "test_rows": test_summary["rows"],
         "test_positives": test_summary["positives"],
         "test_negatives": test_summary["negatives"],
@@ -781,7 +976,8 @@ def run_evaluation(
 
     Parameters
     ----------
-    cfg           : config/eval_config.py
+    cfg           : threshold + final_eval 설정을 합친 객체
+                    (VAL_CALIB_PATH, TEST_PATH, MAX_FPR, THRESHOLD_N_GRID 등)
     ensemble      : 학습 완료된 UnderbaggingEnsemble 객체
     feature_cols  : 모델에 사용된 피처 리스트
     show_plots    : 시각화 여부
@@ -793,7 +989,12 @@ def run_evaluation(
     import pandas as pd
     from config.path_utils import validate_path_contract
 
-    validate_path_contract(list(getattr(cfg, "REQUIRED_DATA_PATHS", [])))
+    required = []
+    if getattr(cfg, "VAL_CALIB_PATH", None):
+        required.append(("val_calib feature data", "file", cfg.VAL_CALIB_PATH))
+    if getattr(cfg, "TEST_PATH", None):
+        required.append(("test feature data", "file", cfg.TEST_PATH))
+    validate_path_contract(required)
 
     # ── 1. 데이터 로드 ────────────────────────────────────────
     print("📂  평가 데이터 로드 중...")
@@ -805,7 +1006,13 @@ def run_evaluation(
     y_calib_true = df_calib[cfg.TARGET_COL].values
     y_calib_prob = ensemble.predict_proba(df_calib, feature_cols)
 
-    tuner = ThresholdTuner(max_fpr=cfg.MAX_FPR, n_grid=cfg.THRESHOLD_N_GRID)
+    fpr_levels = list(getattr(cfg, "FPR_LEVELS", [0.001, 0.005, 0.01, 0.05]))
+    save_cap = getattr(cfg, "SAVE_OPERATING_FPR_CAP", getattr(cfg, "MAX_FPR", 0.01))
+    tuner = ThresholdTuner(
+        fpr_levels=fpr_levels,
+        n_grid=getattr(cfg, "THRESHOLD_N_GRID", 1000),
+        save_operating_fpr_cap=save_cap,
+    )
     tuner.fit(y_calib_true, y_calib_prob)
 
     if show_plots:

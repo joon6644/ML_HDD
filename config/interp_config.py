@@ -8,12 +8,12 @@ interp_config.py  ─  모델 해석 설정  (README §9)
 설정값을 여기서만 관리하고, 09_model_interpretation.ipynb 에 cfg 로 넘김.
 """
 
-from config.path_utils import PROJECT_ROOT, data_path
+from config.path_utils import PROJECT_ROOT, fe_data_path
 
 _BASE = PROJECT_ROOT
 
 # ── 입력 경로 ────────────────────────────────────────────────
-TEST_PATH = data_path("06a_feature_engineering/test.parquet")
+TEST_PATH = fe_data_path("test.parquet")
 
 REQUIRED_DATA_PATHS = [
     ("test feature data", "file", TEST_PATH),

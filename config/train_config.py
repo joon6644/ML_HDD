@@ -8,7 +8,7 @@ import numpy as np
 import lightgbm as lgb
 import os
 from pathlib import Path
-from config.path_utils import PROJECT_ROOT, data_path
+from config.path_utils import PROJECT_ROOT, data_path, fe_data_path
 
 def check_gpu() -> bool:
     """LightGBM GPU 사용 가능 여부 확인."""
@@ -52,11 +52,11 @@ _BASE = PROJECT_ROOT
 
 # ── 입력 데이터 ──────────────────────────────────────────────
 # 1. 학습 데이터 (피처 선택용 샘플을 쓸 경우 fs_sample_data 하위 참조)
-TRAIN_PATH = data_path("06a_feature_engineering/train.parquet")
-# 2. 검증 및 테스트 데이터 (06a_feature_engineering 하위 참조)
-VAL_TUNE_PATH = data_path("06a_feature_engineering/val_tune.parquet")
-VAL_CALIB_PATH = data_path("06a_feature_engineering/val_calib.parquet")
-TEST_PATH = data_path("06a_feature_engineering/test.parquet")
+TRAIN_PATH = fe_data_path("train.parquet")
+# 2. 검증 및 테스트 데이터 (06a → split_group_stratified)
+VAL_TUNE_PATH = fe_data_path("val_tune.parquet")
+VAL_CALIB_PATH = fe_data_path("val_calib.parquet")
+TEST_PATH = fe_data_path("test.parquet")
 
 # 3. 사전 분할된 서브셋 데이터 (SEED에 따라 동적 결정)
 SUBSET_DIR = data_path(f"06b_subset_generation/seed_{SEED}")
@@ -75,7 +75,7 @@ REQUIRED_DATA_PATHS = [
 VAL_TUNE_SAMPLE_SIZE = 1_000_000
 
 # ── 출력 디렉토리 ────────────────────────────────────────────
-MODEL_SAVE_DIR = str(_BASE / "models" / "underbagging_ensemble")
+MODEL_SAVE_DIR = str(_BASE / "models" / "underbagging_ensemble_4")
 
 
 # ════════════════════════════════════════════════════════════

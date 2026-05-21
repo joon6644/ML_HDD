@@ -18,7 +18,11 @@ y_prob   = np.concatenate([prob_pos, prob_neg])
 
 # --- §7 ThresholdTuner ---
 print("=== §7 ThresholdTuner ===")
-tuner = ThresholdTuner(max_fpr=0.01, n_grid=1000)
+tuner = ThresholdTuner(
+    fpr_levels=[0.001, 0.005, 0.01, 0.05],
+    n_grid=1000,
+    save_operating_fpr_cap=0.01,
+)
 res   = tuner.fit(y_true, y_prob)
 thr   = tuner.best_threshold
 assert res['fpr'] <= 0.011, f"FPR 제약 위반: {res['fpr']}"
