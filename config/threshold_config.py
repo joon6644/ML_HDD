@@ -30,11 +30,13 @@ DATE_COL   = "date"
 FPR_LEVELS = [0.001, 0.005, 0.01, 0.05]  # 간판 표 (각 FPR% 이하에서 Recall 최대)
 
 # 08_final_evaluation 저장용: 표에서 이 FPR 상한 행의 threshold 사용. None이면 JSON에 threshold 미저장
-SAVE_OPERATING_FPR_CAP = 0.01
+SAVE_OPERATING_FPR_CAP = 0.005
 
 THRESHOLD_N_GRID = 1000    # 그리드서치 격자 수
+ALARM_WINDOW = 14          # 알람 탐지 슬라이딩 윈도우 크기 (일 단위)
 
 # ── CSV 저장 (None이면 MODEL_SAVE_DIR 에 저장) ───────────────
 THRESHOLD_RESULT_DIR = None
 FPR_RECALL_TABLE_CSV = "fpr_recall_table.csv"
 THRESHOLD_GRID_CSV     = "threshold_grid.csv"
+

@@ -170,11 +170,11 @@ OPTUNA_BOUNDS = {
     "max_depth": (4, 10),
     "num_leaves": (16, 128),
     "min_child_samples": (20, 100),
-    # feature_fraction: 앙상블 다양성을 주되 하한(0.5) 방어
-    "feature_fraction": (0.5, 1.0),
-    "bagging_fraction": (0.6, 1.0),
-    "lambda_l1": (1e-4, 1.0),
-    "lambda_l2": (1e-8, 5.0),
+    # feature_fraction: 앙상블 다양성을 주되 하한(0.6) 방어
+    "feature_fraction": (0.6, 1.0),
+    # "bagging_fraction": (0.6, 1.0),
+    # "lambda_l1": (1e-4, 1.0),
+    # "lambda_l2": (1e-8, 5.0),
     "n_estimators": (400, 800)
 }
 

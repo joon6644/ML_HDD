@@ -1,0 +1,1163 @@
+﻿diff --git a/src/eval_core.py b/src/eval_core.py
+index e390732..55bab37 100644
+--- a/src/eval_core.py
++++ b/src/eval_core.py
+@@ -1,11 +1,11 @@
+ """
+-eval_core.py  ?  ?꾧퀎媛??쒕떇 + 紐⑤뜽 ?됯? ?붿쭊  (README 짠7, 짠8)
+-??????????????????????????????????????????????????????????????
+-짠7  ThresholdTuner      : val_calib 洹몃━?쒖꽌移???FPR蹂?Recall ????FPR?밨ecall 怨≪꽑
+-짠8.1 evaluate_row_level : ???⑥쐞 PR-AUC / MCC / F1 ?됯?
+-짠8.2 EntityLevelEvaluator : 媛쒖껜 ?⑥쐞 濡ㅻ쭅 ?됯? (Hit/Miss/FA + Lead Time)
++eval_core.py  占쏙옙占? 占쎌뿫?④쑨而?占쎈뮔占쎈뻼 + 筌뤴뫀??占쎈즸揶쏉옙 占쎈퓦筌욑옙  (README 吏?, 吏?)
++占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙
++吏?  ThresholdTuner      : val_calib 域밸챶?곻옙諭띰옙苑뚨㎉占?占쎈꼥 FPR癰귨옙 Recall 占쎈ご 占쎈꼥 FPR-Recall ?ⓥ돦苑?+吏?.1 evaluate_row_level : 占쎈뻬 占쎈뼊占쎌맄 PR-AUC / MCC / F1 占쎈즸揶쏉옙
++吏?.2 EntityLevelEvaluator : 揶쏆뮇猿?占쎈뼊占쎌맄 嚥▲끇彛?占쎈즸揶쏉옙 (Hit/Miss/FA + Lead Time)
+ 
+-?ㅼ젙? config/threshold_config.py, config/final_eval_config.py ?먯꽌留?
++占쎄퐬占쎌젟占쏙옙占?config/threshold_config.py, config/final_eval_config.py 占쎈퓠占쎄퐣筌랃옙.
+ """
+ 
+ from __future__ import annotations
+@@ -31,7 +31,7 @@ from sklearn.metrics import (
+ warnings.filterwarnings("ignore")
+ 
+ 
+-# ?? ?쒓? ?고듃 ????????????????????????????????????????????????
++# 占쏙옙占쏙옙占쏙옙 占쎈립疫뀐옙 占쎈？占쎈뱜 占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙
+ def _set_korean_font():
+     for name in ["Malgun Gothic", "NanumGothic", "AppleGothic", "DejaVu Sans"]:
+         if any(name.lower() in f.name.lower() for f in fm.fontManager.ttflist):
+@@ -50,9 +50,9 @@ def _log(msg: str, *, indent: int = 0) -> None:
+ 
+ 
+ def _log_step(step: str, detail: str = "") -> None:
+-    line = f"[짠7] {step}"
++    line = f"[吏?] {step}"
+     if detail:
+-        line += f" ??{detail}"
++        line += f" - {detail}"
+     _log(line)
+ 
+ 
+@@ -61,11 +61,11 @@ def save_threshold_tuning_csvs(
+     cfg,
+     out_dir,
+ ) -> dict[str, str]:
+-    """짠7 ?쒕떇 寃곌낵瑜?CSV濡???? 諛섑솚: {fpr_recall_table, threshold_grid} 寃쎈줈."""
++    """吏? 占쎈뮔占쎈뻼 野껉퀗?든몴占?CSV嚥∽옙 占쏙옙占쏙옙?? 獄쏆꼹?? {fpr_recall_table, threshold_grid} 野껋럥以?"""
+     from pathlib import Path
+ 
+     if tuner._result is None or tuner._grid_df is None:
+-        raise RuntimeError("ThresholdTuner.fit() ?댄썑?먮쭔 CSV ???媛?ν빀?덈떎.")
++        raise RuntimeError("ThresholdTuner.fit() 占쎌뵠占쎌뜎占쎈퓠筌랃옙 CSV 占쏙옙占쏙옙??揶쏉옙占쎈뮟占쎈?占쎈빍占쎈뼄.")
+ 
+     out_dir = Path(out_dir)
+     out_dir.mkdir(parents=True, exist_ok=True)
+@@ -90,10 +90,10 @@ def save_threshold_tuning_csvs(
+     }
+ 
+ 
+-# ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
+-#  짠7.  THRESHOLD TUNER
+-#  val_calib ?먯꽌 洹몃━?쒖꽌移???FPR ?곹븳 ??Recall 理쒕???-# ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
++# 占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름
++#  吏?.  THRESHOLD TUNER
++#  val_calib 占쎈퓠占쎄퐣 域밸챶?곻옙諭띰옙苑뚨㎉占?占쎈꼥 FPR 占쎄맒占쎈립 占쎄땀 Recall 筌ㅼ뮆占쏙옙占쎌넅
++# 占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름
+ 
+ def summarize_recall_at_fpr_levels(
+     grid_df: pd.DataFrame,
+@@ -101,7 +101,7 @@ def summarize_recall_at_fpr_levels(
+     *,
+     operating_fpr: float | None = None,
+ ) -> list[dict]:
+-    """媛?FPR ?곹븳?먯꽌 Recall??理쒕??뷀븳 ?댁쁺???붿빟 (README 짠7 媛꾪뙋 ??."""
++    """揶쏉옙 FPR 占쎄맒占쎈립占쎈퓠占쎄퐣 Recall占쎌뱽 筌ㅼ뮆占쏙옙占쎌넅占쎈립 占쎌뒲占쎌겫占쎌젎 占쎌뒄占쎈튋 (README 吏? 揶쏄쑵??占쎈ご)."""
+     rows = []
+     for cap in fpr_levels:
+         valid = grid_df[grid_df["fpr"] <= cap]
+@@ -124,13 +124,13 @@ def summarize_recall_at_fpr_levels(
+ 
+ class ThresholdTuner:
+     """
+-    val_calib 洹몃━?쒖꽌移???FPR ?곹븳蹂?Recall ?쒕? 異쒕젰?섍퀬 FPR?밨ecall 怨≪꽑??洹몃┝.
++    val_calib 域밸챶?곻옙諭띰옙苑뚨㎉占?占쎌뜎 FPR 占쎄맒占쎈립癰귨옙 Recall 占쎈ご?쒙옙 ?곗뮆?곤옙釉?⑨옙 FPR-Recall ?ⓥ돦苑묕옙??域밸챶??
+ 
+     Parameters
+     ----------
+-    fpr_levels            : README 짠7 媛꾪뙋 ?쒖뿉 ??FPR ?곹븳 紐⑸줉 (?꾩닔)
+-    n_grid                : ?꾧퀎媛??먯깋 寃⑹옄 ??-    save_operating_fpr_cap: 08 ??μ슜?쇰줈 ?쒖뿉???좏깮??FPR ?곹븳 (?? 0.01). None?대㈃ 誘몄꽑??+    fpr_levels            : README 吏? 揶쏄쑵??占쎈ご占쎈퓠 占쎈쿈 FPR 占쎄맒占쎈립 筌뤴뫖以?(占쎈툡占쎈땾)
++    n_grid                : 占쎌뿫?④쑨而?占쎄튂占쎄퉳 野꺿뫗??占쎈땾
++    save_operating_fpr_cap: 08 占쏙옙占쏙옙?ｏ옙?쒙옙?앮에占?占쎈ご占쎈퓠占쎄퐣 占쎄퐨占쎄문占쎈막 FPR 占쎄맒占쎈립 (占쎌굙: 0.01). None占쎌뵠筌롳옙 沃섎챷苑묕옙源?     """
+ 
+     def __init__(
+@@ -150,7 +150,7 @@ class ThresholdTuner:
+     # ----------------------------------------------------------
+     def fit(self, y_true: np.ndarray, y_prob: np.ndarray) -> dict:
+         """
+-        val_calib ?곗씠?곕줈 理쒖쟻 ?꾧퀎媛??먯깋.
++        val_calib 占쎈쑓占쎌뵠占쎄숲嚥∽옙 筌ㅼ뮇??占쎌뿫?④쑨而?占쎄튂占쎄퉳.
+ 
+         Returns
+         -------
+@@ -164,19 +164,22 @@ class ThresholdTuner:
+         thresholds = np.linspace(0.0, 1.0, self.n_grid + 1)
+         n_thr = len(thresholds)
+         _log(
+-            f"?꾧퀎媛?洹몃━???쒖튂: {n_thr:,}媛??꾨낫 횞 {n_rows:,}??"
+-            f"(FPR ?? {[f'{c*100:.1f}%' for c in self.fpr_levels]})",
++            f"占쎌뿫?④쑨而?域밸챶?곻옙諭?占쎄퐣燁삼옙: {n_thr:,}揶쏉옙 占쎌뜎癰귨옙 ??{n_rows:,}占쎈뻬 "
++            f"(FPR 占쎈ご: {[f'{c*100:.1f}%' for c in self.fpr_levels]})",
+             indent=1,
+         )
+         t_grid = time.perf_counter()
+ 
+         records = []
++        is_pos = (y_true == 1)
++        is_neg = ~is_pos
++
+         for i, thr in enumerate(thresholds):
+-            y_pred = (y_prob >= thr).astype(int)
+-            tp = int(((y_pred == 1) & (y_true == 1)).sum())
+-            fp = int(((y_pred == 1) & (y_true == 0)).sum())
+-            fn = int(((y_pred == 0) & (y_true == 1)).sum())
+-            tn = int(((y_pred == 0) & (y_true == 0)).sum())
++            y_pred_bool = (y_prob >= thr)
++            tp = int((y_pred_bool & is_pos).sum())
++            fp = int((y_pred_bool & is_neg).sum())
++            fn = n_pos - tp
++            tn = n_neg - fp
+ 
+             recall    = tp / n_pos if n_pos > 0 else 0.0
+             fpr       = fp / n_neg if n_neg > 0 else 0.0
+@@ -191,14 +194,14 @@ class ThresholdTuner:
+             if i == 0 or i == n_thr - 1 or (i + 1) % 250 == 0:
+                 elapsed = time.perf_counter() - t_grid
+                 pct = 100.0 * (i + 1) / n_thr
+-                _log(f"... {i + 1:,}/{n_thr:,} ({pct:.0f}%) ??{elapsed:.1f}s 寃쎄낵", indent=2)
++                _log(f"... {i + 1:,}/{n_thr:,} ({pct:.0f}%) - {elapsed:.1f}s 野껋럡??, indent=2)
+ 
+-        _log(f"洹몃━???쒖튂 ?꾨즺 ({time.perf_counter() - t_grid:.1f}s)", indent=1)
++        _log(f"域밸챶?곻옙諭?占쎄퐣燁삼옙 占쎌끏?뤄옙 ({time.perf_counter() - t_grid:.1f}s)", indent=1)
+ 
+         self._grid_df = pd.DataFrame(records)
+-        _log("PR-AUC 怨꾩궛 以?..", indent=1)
++        _log("PR-AUC ?④쑴沅?餓ο옙...", indent=1)
+         pr_auc = average_precision_score(y_true, y_prob)
+-        _log("FPR蹂?Recall ??吏묎퀎 以?..", indent=1)
++        _log("FPR癰귨옙 Recall 占쎈ご 筌욌쵌??餓ο옙...", indent=1)
+ 
+         fpr_recall_table = summarize_recall_at_fpr_levels(
+             self._grid_df,
+@@ -235,56 +238,56 @@ class ThresholdTuner:
+ 
+     # ----------------------------------------------------------
+     def print_table(self) -> None:
+-        """README 짠7 媛꾪뙋 ??(FPR ?곹븳蹂?Recall) ??洹몃옒?꾨낫??癒쇱? 異쒕젰."""
++        """README 吏? 揶쏄쑵??占쎈ご (FPR 占쎄맒占쎈립癰귨옙 Recall) - 域밸챶?믭옙遊썼퉪????믪눘占쏙옙 ?곗뮆??"""
+         if self._result is None:
+-            raise RuntimeError("fit() ??癒쇱? ?몄텧?섏꽭??")
++            raise RuntimeError("fit() 占쎌뱽 ?믪눘占쏙옙 占쎌깈?곗뮉釉?옙苑?옙??")
+         r = self._result
+         table = r["fpr_recall_table"]
+ 
+         print(SEP)
+-        print("  THRESHOLD TUNING ??val_calib (README 짠7)")
++        print("  THRESHOLD TUNING - val_calib (README 吏?)")
+         print(SEP)
+-        print(f"  PR-AUC (?뺣쪧 ?덉쭏, ?꾧퀎媛?臾닿?): {r['pr_auc']:.5f}")
+-        print(f"  ?쒕낯: 怨좎옣 {r['n_pos']:,}??/ ?뺤긽 {r['n_neg']:,}??n")
++        print(f"  PR-AUC (占쎌넇?쒙옙 占쎈?筌욑옙, 占쎌뿫?④쑨而??얜떯占쏙옙): {r['pr_auc']:.5f}")
++        print(f"  占쎈ご癰귨옙: ?⑥쥙??{r['n_pos']:,}占쎈뻬 / 占쎌젟占쎄맒 {r['n_neg']:,}占쎈뻬\n")
+ 
+-        print("  [FPR ?곹븳蹂?理쒕? Recall ??媛꾪뙋 ??")
+-        print(f"  {'FPR ?곹븳':>10}  {'Recall':>10}  {'?ㅼ젣 FPR':>10}  {'threshold':>10}")
++        print("  [FPR 占쎄맒占쎈립癰귨옙 筌ㅼ뮆占쏙옙 Recall - 揶쏄쑵??占쎈ご]")
++        print(f"  {'FPR 占쎄맒占쎈립':>10}  {'Recall':>10}  {'占쎈뼄占쎌젫 FPR':>10}  {'threshold':>10}")
+         print(f"  {'-'*10}  {'-'*10}  {'-'*10}  {'-'*10}")
+         for row in table:
+             cap_pct = row["fpr_cap"] * 100
+             rec_pct = row["recall"] * 100
+             fpr_pct = row["fpr_actual"] * 100
+-            tag = " ??08 ??? if row.get("is_save_point") else ""
++            tag = " 占쎈? 08 占쏙옙占쏙옙?? if row.get("is_save_point") else ""
+             print(
+                 f"  {cap_pct:>9.1f}%  {rec_pct:>9.2f}%  {fpr_pct:>9.2f}%  {row['threshold']:>10.4f}{tag}"
+             )
+-            print(f"      ??FPR {fpr_pct:.2f}%?먯꽌 Recall {rec_pct:.2f}%")
++            print(f"      占쎈꼥 FPR {fpr_pct:.2f}%占쎈퓠占쎄퐣 Recall {rec_pct:.2f}%")
+ 
+         if r.get("threshold") is not None and r.get("save_operating_fpr_cap") is not None:
+             cap = r["save_operating_fpr_cap"] * 100
+             print(
+-                f"\n  [08 ??μ슜] FPR ?곹븳 {cap:.1f}% ????threshold = {r['threshold']:.4f}"
++                f"\n  [08 占쏙옙占쏙옙?ｏ옙?? FPR 占쎄맒占쎈립 {cap:.1f}% 占쎈뻬 占쎈꼥 threshold = {r['threshold']:.4f}"
+             )
+         print(SEP)
+ 
+     # ----------------------------------------------------------
+     def plot(self):
+-        """README 짠7: FPR(x)?밨ecall(y) 怨≪꽑 (?쒖쓽 媛??댁쁺???쒖떆). fit()쨌print_table() ?댄썑 ?몄텧."""
++        """README 吏?: FPR(x)-Recall(y) ?ⓥ돦苑?(占쎈ご占쎌벥 揶쏉옙 占쎌뒲占쎌겫占쎌젎 占쎈ご占쎈뻻). fit()夷똯rint_table() 占쎌뵠占쎌뜎 占쎌깈?곤옙."""
+         if self._grid_df is None:
+-            raise RuntimeError("fit() ??癒쇱? ?몄텧?섏꽭??")
++            raise RuntimeError("fit() 占쎌뱽 ?믪눘占쏙옙 占쎌깈?곗뮉釉?옙苑?옙??")
+ 
+         gdf = self._grid_df
+         table = self._result["fpr_recall_table"]
+ 
+         fig, ax = plt.subplots(figsize=(8, 6))
+-        ax.plot(gdf["fpr"], gdf["recall"], color="purple", lw=2, label="FPR?밨ecall curve")
++        ax.plot(gdf["fpr"], gdf["recall"], color="purple", lw=2, label="FPR-Recall curve")
+         for row in table:
+             ax.scatter(
+                 row["fpr_actual"],
+                 row["recall"],
+                 s=100,
+                 zorder=5,
+-                label=f"FPR??row['fpr_cap']*100:.1f}%",
++                label=f"FPR占쎈룥{row['fpr_cap']*100:.1f}%",
+             )
+             ax.annotate(
+                 f"{row['fpr_cap']*100:.1f}%\nR={row['recall']:.2f}",
+@@ -293,8 +296,8 @@ class ThresholdTuner:
+                 xytext=(6, 6),
+                 fontsize=9,
+             )
+-        ax.set_xlabel("FPR (?ㅽ깘??")
+-        ax.set_ylabel("Recall (?먯??? TPR)")
++        ax.set_xlabel("FPR (占쎌궎占쎄튂占쎌몛)")
++        ax.set_ylabel("Recall (占쎄튂筌욑옙占쎌몛, TPR)")
+         ax.set_title("Recall vs FPR (val_calib)", fontweight="bold")
+         ax.legend(loc="lower right", fontsize=8)
+         ax.grid(alpha=0.3)
+@@ -304,19 +307,19 @@ class ThresholdTuner:
+     @property
+     def best_threshold(self) -> float:
+         if self._result is None:
+-            raise RuntimeError("fit() ??癒쇱? ?몄텧?섏꽭??")
++            raise RuntimeError("fit() 占쎌뱽 ?믪눘占쏙옙 占쎌깈?곗뮉釉?옙苑?옙??")
+         thr = self._result.get("threshold")
+         if thr is None:
+             raise RuntimeError(
+-                "??μ슜 threshold ?놁쓬. threshold_config.SAVE_OPERATING_FPR_CAP ???ㅼ젙?섏꽭??"
++                "占쏙옙占쏙옙?ｏ옙??threshold 占쎈씨占쎌벉. threshold_config.SAVE_OPERATING_FPR_CAP 占쎌뱽 占쎄퐬占쎌젟占쎈릭占쎄쉭占쎌뒄."
+             )
+         return float(thr)
+ 
+ 
+-# ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
+-#  짠8.1  ROW-LEVEL EVALUATION
++# 占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름
++#  吏?.1  ROW-LEVEL EVALUATION
+ #  PR-AUC / MCC / F1 / Precision / Recall / FPR
+-# ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
++# 占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름
+ 
+ def evaluate_row_level(
+     y_true: np.ndarray,
+@@ -325,10 +328,10 @@ def evaluate_row_level(
+     title: str = "Test Set",
+ ) -> dict:
+     """
+-    README 짠8.1 ???⑥쐞 ?먯닔 ?됯?.
++    README 吏?.1 占쎈뻬 占쎈뼊占쎌맄 占쎌젎占쎈땾 占쎈즸揶쏉옙.
+ 
+-    ?됯? 吏?? PR-AUC, MCC, F1, Precision, Recall, FPR
+-    ?쒓컖?? : PR Curve + Confusion Matrix
++    占쎈즸揶쏉옙 筌욑옙占쎈ご: PR-AUC, MCC, F1, Precision, Recall, FPR
++    占쎈뻻揶쏄낱?? : PR Curve + Confusion Matrix
+     """
+     y_true = np.asarray(y_true)
+     y_pred = (y_prob >= threshold).astype(int)
+@@ -351,17 +354,17 @@ def evaluate_row_level(
+     print(SEP)
+     print(f"  ROW-LEVEL EVALUATION  ({title})")
+     print(SEP)
+-    print(f"  ?꾧퀎媛?   : {threshold:.4f}")
++    print(f"  占쎌뿫?④쑨而?   : {threshold:.4f}")
+     print(f"  PR-AUC    : {pr_auc:.5f}")
+     print(f"  MCC       : {mcc:.5f}")
+     print(f"  F1-score  : {f1:.5f}")
+     print(f"  Precision : {prec:.5f}")
+     print(f"  Recall    : {rec:.5f}  ({rec*100:.2f}%)")
+     print(f"  FPR       : {fpr:.5f}  ({fpr*100:.2f}%)")
+-    print(f"\n  ??FPR {fpr*100:.2f}%?먯꽌 Recall {rec*100:.2f}%")
++    print(f"\n  占쎈꼥 FPR {fpr*100:.2f}%占쎈퓠占쎄퐣 Recall {rec*100:.2f}%")
+     print(SEP)
+ 
+-    # ?? ?쒓컖??????????????????????????????????????????????????
++    # 占쏙옙占쏙옙占쏙옙 占쎈뻻揶쏄낱??占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙
+     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+ 
+     # PR Curve
+@@ -369,7 +372,7 @@ def evaluate_row_level(
+     pc, rc, _ = precision_recall_curve(y_true, y_prob)
+     ax.plot(rc, pc, color="steelblue", lw=2, label=f"PR-AUC={pr_auc:.4f}")
+     ax.scatter([rec], [prec], color="tomato", s=120, zorder=5,
+-               label=f"?댁쁺??thr={threshold:.3f}")
++               label=f"占쎌뒲占쎌겫占쎌젎 thr={threshold:.3f}")
+     baseline = y_true.mean()
+     ax.axhline(baseline, color="gray", ls="--", alpha=0.5, label=f"Baseline={baseline:.4f}")
+     ax.set_xlabel("Recall"); ax.set_ylabel("Precision")
+@@ -392,44 +395,44 @@ def evaluate_row_level(
+             ax.text(j, i, f"{v:,}\n({v/total*100:.2f}%)", ha="center", va="center",
+                     fontsize=11, color="white" if v > cm.max()*0.5 else "black")
+ 
+-    plt.suptitle(f"???⑥쐞 ?됯? ({title})", fontsize=13, fontweight="bold")
++    plt.suptitle(f"占쎈뻬 占쎈뼊占쎌맄 占쎈즸揶쏉옙 ({title})", fontsize=13, fontweight="bold")
+     plt.tight_layout()
+     plt.show()
+ 
+     return result
+ 
+ 
+-# ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
+-#  짠8.2  ENTITY-LEVEL ROLLING EVALUATION
+-#  媛쒖껜 ?⑥쐞: Hit Rate / Miss Rate / FA Rate / Lead Time
+-# ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
++# 占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름
++#  吏?.2  ENTITY-LEVEL ROLLING EVALUATION
++#  揶쏆뮇猿?占쎈뼊占쎌맄: Hit Rate / Miss Rate / FA Rate / Lead Time
++# 占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름
+ 
+ class EntityLevelEvaluator:
+     """
+-    README 짠8.2 ?ㅻТ??濡ㅻ쭅 ?됯?.
++    README 吏?.2 占쎈뼄?얜똾??嚥▲끇彛?占쎈즸揶쏉옙.
+ 
+-    ?됯? ?⑥쐞: serial_number (媛쒖껜)
+-    - 怨좎옣 媛쒖껜: ?곸뼱???섎굹??failure=1 ?됱씠 ?덈뒗 ?쒕━??-    - ?뺤긽 媛쒖껜: 紐⑤뱺 failure=0
++    占쎈즸揶쏉옙 占쎈뼊占쎌맄: serial_number (揶쏆뮇猿?
++    - ?⑥쥙??揶쏆뮇猿? 占쎌읅占쎈선占쎈즲 占쎈릭占쎄돌占쎌벥 failure=1 占쎈뻬占쎌뵠 占쎌뿳占쎈뮉 占쎈뻻?귐딅섰
++    - 占쎌젟占쎄맒 揶쏆뮇猿? 筌뤴뫀諭?failure=0
+ 
+-    ?듭떖 吏??-    ?????????
+-    Hit Rate  : 怨좎옣 媛쒖껜 以??뚮엺??諛쒖깮??鍮꾩쑉
+-    Miss Rate : 怨좎옣 媛쒖껜 以??뚮엺??諛쒖깮?섏? ?딆? 鍮꾩쑉  (= 1 - Hit Rate)
+-    FA Rate   : ?뺤긽 媛쒖껜 以??뚮엺??諛쒖깮??鍮꾩쑉 (?ㅽ깘??
+-    Lead Time : ?먯???怨좎옣 媛쒖껜?먯꽌 泥??뚮엺~D-1 源뚯????쇱닔 ?됯퇏
+-                (?먯? 紐삵븳 媛쒖껜???쒖쇅)
++    占쎈퉹占쎈뼎 筌욑옙占쎈ご
++    占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占?+    Hit Rate  : ?⑥쥙??揶쏆뮇猿?餓ο옙 占쎈르占쎌뿺占쎌뵠 獄쏆뮇源?옙釉???쑴??+    Miss Rate : ?⑥쥙??揶쏆뮇猿?餓ο옙 占쎈르占쎌뿺占쎌뵠 獄쏆뮇源?옙釉?쭪占?占쎈륫占쏙옙占???쑴?? (= 1 - Hit Rate)
++    FA Rate   : 占쎌젟占쎄맒 揶쏆뮇猿?餓ο옙 占쎈르占쎌뿺占쎌뵠 獄쏆뮇源?옙釉???쑴??(占쎌궎占쎄튂占쎌몛)
++    Lead Time : 占쎄튂筌욑옙占쎈쭆 ?⑥쥙??揶쏆뮇猿쒙옙肉됵옙苑?筌ｏ옙 占쎈르占쎌뿺~D-1 繹먮슣占쏙옙占쎌벥 占쎌뵬占쎈땾 占쎈즸域뱄옙
++                (占쎄튂筌욑옙 筌륁궢釉?揶쏆뮇猿쒙옙??占쎌젫占쎌뇚)
+ 
+-    Lead Time 怨꾩궛 湲곗?
+-    ???????????????????
+-    留덉?留?愿痢≪씪(??D-1) - 泥??뚮엺 諛쒖깮??-    媛믪씠 ?댁닔濡????쇱컢 寃쎈낫瑜?諛쒕졊??寃?
++    Lead Time ?④쑴沅?疫꿸퀣占쏙옙
++    占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占?+    筌띾뜆占쏙옙筌랃옙 ?울옙筌β돦??占쎈렦 D-1) - 筌ｏ옙 占쎈르占쎌뿺 獄쏆뮇源?옙??+    揶쏅???占쎄깻占쎈땾嚥∽옙 占쎈쐭 占쎌뵬筌∽옙 野껋럥?ョ몴占?獄쏆뮆議딉옙釉?野껓옙.
+ 
+     Parameters
+     ----------
+-    serial_col : serial_number 而щ읆紐?-    date_col   : date 而щ읆紐?-    target_col : failure 而щ읆紐?+    serial_col : serial_number ?뚎됱쓥筌륅옙
++    date_col   : date ?뚎됱쓥筌륅옙
++    target_col : failure ?뚎됱쓥筌륅옙
+     """
+ 
+     def __init__(
+@@ -452,10 +455,10 @@ class EntityLevelEvaluator:
+         """
+         Parameters
+         ----------
+-        df        : test ?곗씠??(serial_number, date, failure 而щ읆 ?ы븿)
+-                    ?몃뜳?ㅺ? y_prob ? ?뺣젹?섏뼱 ?덉뼱????
+-        y_prob    : ?숈긽釉??덉륫 ?뺣쪧 (df ? ?숈씪 ?쒖꽌)
+-        threshold : ?꾧퀎媛?(ThresholdTuner.best_threshold ?ъ슜 沅뚯옣)
++        df        : test 占쎈쑓占쎌뵠占쎄숲 (serial_number, date, failure ?뚎됱쓥 占쎈７占쎈맙)
++                    占쎌뵥占쎈쑔占쎈뮞揶쏉옙 y_prob 占쏙옙占?占쎌젟占쎌졊占쎈┷占쎈선 占쎌뿳占쎈선占쎈튊 占쎈맙.
++        y_prob    : 占쎈린占쎄맒?됵옙 占쎌굙筌ο옙 占쎌넇?쒙옙 (df 占쏙옙占?占쎈짗占쎌뵬 占쎈떄占쎄퐣)
++        threshold : 占쎌뿫?④쑨而?(ThresholdTuner.best_threshold 占쎄텢占쎌뒠 亦낅슣??
+ 
+         Returns
+         -------
+@@ -477,7 +480,7 @@ class EntityLevelEvaluator:
+             last_date  = grp[self.date_col].max()
+             first_alarm_date = alarm_rows[self.date_col].min() if has_alarm else pd.NaT
+ 
+-            # Lead Time: last_date - first_alarm_date (?쇱닔)
++            # Lead Time: last_date - first_alarm_date (占쎌뵬占쎈땾)
+             lead_time = (
+                 (last_date - first_alarm_date).days
+                 if (has_alarm and is_failure)
+@@ -495,7 +498,7 @@ class EntityLevelEvaluator:
+ 
+         entity_df = pd.DataFrame(records)
+ 
+-        # ?? 吏??怨꾩궛 ?????????????????????????????????????????
++        # 占쏙옙占쏙옙占쏙옙 筌욑옙占쎈ご ?④쑴沅?占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占?         fail_ent   = entity_df[entity_df["is_failure"] == 1]
+         normal_ent = entity_df[entity_df["is_failure"] == 0]
+ 
+@@ -537,44 +540,44 @@ class EntityLevelEvaluator:
+         print(SEP)
+         print("  ENTITY-LEVEL ROLLING EVALUATION")
+         print(SEP)
+-        print(f"  怨좎옣 媛쒖껜 ??: {r['n_failure_entities']:,}")
+-        print(f"  ?뺤긽 媛쒖껜 ??: {r['n_normal_entities']:,}")
++        print(f"  ?⑥쥙??揶쏆뮇猿?占쎈땾 : {r['n_failure_entities']:,}")
++        print(f"  占쎌젟占쎄맒 揶쏆뮇猿?占쎈땾 : {r['n_normal_entities']:,}")
+         print()
+-        print(f"  怨좎옣 ?먯???(Hit Rate)  : {r['hit_rate']:.4f}  "
++        print(f"  ?⑥쥙??占쎄튂筌욑옙占쎌몛 (Hit Rate)  : {r['hit_rate']:.4f}  "
+               f"({r['hit_count']}/{r['n_failure_entities']})")
+-        print(f"  誘명깘??     (Miss Rate) : {r['miss_rate']:.4f}  "
++        print(f"  沃섎챸源섓옙??     (Miss Rate) : {r['miss_rate']:.4f}  "
+               f"({r['miss_count']}/{r['n_failure_entities']})")
+-        print(f"  ?ㅽ깘??     (FA Rate)   : {r['fa_rate']:.4f}  "
++        print(f"  占쎌궎占쎄튂占쎌몛      (FA Rate)   : {r['fa_rate']:.4f}  "
+               f"({r['fa_count']}/{r['n_normal_entities']})")
+         print()
+         if not np.isnan(r["mean_lead_time_days"]):
+-            print(f"  ?됯퇏 ?ъ쟾 寃쎈낫 ?쒓컙 (Lead Time) : {r['mean_lead_time_days']:.1f}??)
+-            print("  (?먯? 紐삵븳 媛쒖껜 ?쒖쇅)")
++            print(f"  占쎈즸域뱄옙 占쎄텢占쎌읈 野껋럥??占쎈뻻揶쏉옙 (Lead Time) : {r['mean_lead_time_days']:.1f}占쎌뵬")
++            print("  (占쎄튂筌욑옙 筌륁궢釉?揶쏆뮇猿?占쎌젫占쎌뇚)")
+         print(SEP)
+ 
+     # ----------------------------------------------------------
+     @staticmethod
+     def plot(result: dict):
+-        """Hit / Miss / FA / Lead Time ?쒓컖??"""
++        """Hit / Miss / FA / Lead Time 占쎈뻻揶쏄낱??"""
+         r  = result
+         ed = r["entity_df"]
+ 
+         fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+ 
+-        # ?? ?쇱そ: Hit / Miss / FA 留됰?
++        # 占쏙옙占쏙옙占쏙옙 占쎌뇢筌잞옙: Hit / Miss / FA 筌띾맧占쏙옙
+         ax = axes[0]
+-        categories = ["Hit\n(怨좎옣 ?먯?)", "Miss\n(怨좎옣 誘명깘)", "FA\n(?뺤긽 ?ㅽ깘)"]
++        categories = ["Hit\n(?⑥쥙??占쎄튂筌욑옙)", "Miss\n(?⑥쥙??沃섎챸源?", "FA\n(占쎌젟占쎄맒 占쎌궎占쎄튂)"]
+         counts     = [r["hit_count"], r["miss_count"], r["fa_count"]]
+         colors     = ["steelblue", "tomato", "orange"]
+         bars = ax.bar(categories, counts, color=colors, edgecolor="white", linewidth=0.8)
+         for bar, cnt in zip(bars, counts):
+             ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
+                     str(cnt), ha="center", va="bottom", fontweight="bold")
+-        ax.set_ylabel("媛쒖껜 ??)
+-        ax.set_title("媛쒖껜 ?⑥쐞 ?먯? 寃곌낵", fontweight="bold")
++        ax.set_ylabel("揶쏆뮇猿?占쎈땾")
++        ax.set_title("揶쏆뮇猿?占쎈뼊占쎌맄 占쎄튂筌욑옙 野껉퀗??, fontweight="bold")
+         ax.grid(axis="y", alpha=0.3)
+ 
+-        # 鍮꾩쑉 ?쒖떆 (?댁쨷 y異?????띿뒪??
++        # ??쑴??占쎈ご占쎈뻻 (占쎌뵠餓ο옙 y?곤옙 占쏙옙占쏙옙??占쎈볩옙?わ옙??
+         ax.text(0, counts[0]/2, f"{r['hit_rate']*100:.1f}%",
+                 ha="center", va="center", color="white", fontweight="bold")
+         ax.text(1, counts[1]/2 if counts[1] > 0 else 0.5,
+@@ -586,25 +589,25 @@ class EntityLevelEvaluator:
+                 ha="center", va="center", color="white" if counts[2]>0 else "black",
+                 fontweight="bold")
+ 
+-        # ?? ?ㅻⅨ履? Lead Time 遺꾪룷
++        # 占쏙옙占쏙옙占쏙옙 占쎌궎?쒕챷?? Lead Time ?브쑵猷?         ax = axes[1]
+         hit_lt = ed[(ed["is_failure"]==1) & (ed["has_alarm"]==1)]["lead_time_days"].dropna()
+         if len(hit_lt) > 0:
+             ax.hist(hit_lt, bins=30, color="steelblue", edgecolor="white", alpha=0.85)
+             ax.axvline(hit_lt.mean(), color="tomato", ls="--", lw=2,
+-                       label=f"?됯퇏 {hit_lt.mean():.1f}??)
++                       label=f"占쎈즸域뱄옙 {hit_lt.mean():.1f}占쎌뵬")
+             ax.axvline(hit_lt.median(), color="orange", ls=":", lw=2,
+-                       label=f"以묒븰媛?{hit_lt.median():.1f}??)
+-            ax.set_xlabel("Lead Time (??")
+-            ax.set_ylabel("媛쒖껜 ??)
+-            ax.set_title("?ъ쟾 寃쎈낫 ?쒓컙 遺꾪룷 (?먯? ?깃났 媛쒖껜)", fontweight="bold")
++                       label=f"餓λ쵐釉겼첎占?{hit_lt.median():.1f}占쎌뵬")
++            ax.set_xlabel("Lead Time (占쎌뵬)")
++            ax.set_ylabel("揶쏆뮇猿?占쎈땾")
++            ax.set_title("占쎄텢占쎌읈 野껋럥??占쎈뻻揶쏉옙 ?브쑵猷?(占쎄튂筌욑옙 占쎄쉐?⑨옙 揶쏆뮇猿?", fontweight="bold")
+             ax.legend(); ax.grid(alpha=0.3)
+         else:
+-            ax.text(0.5, 0.5, "?먯???怨좎옣 媛쒖껜 ?놁쓬", ha="center", va="center",
++            ax.text(0.5, 0.5, "占쎄튂筌욑옙占쎈쭆 ?⑥쥙??揶쏆뮇猿?占쎈씨占쎌벉", ha="center", va="center",
+                     transform=ax.transAxes, fontsize=12)
+-            ax.set_title("?ъ쟾 寃쎈낫 ?쒓컙 遺꾪룷", fontweight="bold")
++            ax.set_title("占쎄텢占쎌읈 野껋럥??占쎈뻻揶쏉옙 ?브쑵猷?, fontweight="bold")
+ 
+-        plt.suptitle("?ㅻТ??濡ㅻ쭅 ?됯? 寃곌낵", fontsize=13, fontweight="bold")
++        plt.suptitle("占쎈뼄?얜똾??嚥▲끇彛?占쎈즸揶쏉옙 野껉퀗??, fontsize=13, fontweight="bold")
+         plt.tight_layout()
+         plt.show()
+ 
+@@ -614,6 +617,7 @@ class SavedEnsemble:
+ 
+     def __init__(self, models):
+         self.models = models
++        self.last_probs = None
+ 
+     def predict_proba(
+         self,
+@@ -624,28 +628,44 @@ class SavedEnsemble:
+     ) -> np.ndarray:
+         n_rows = len(df)
+         n_models = len(self.models)
++
++        if verbose:
++            _log("占쎌굙筌β돦??占쎈뱟占쎄쉐 占쎈쑓占쎌뵠占쎄숲 float32 筌?Ŋ?わ옙??餓ο옙...", indent=2)
++            t_cast = time.perf_counter()
++        X = df[feature_cols].astype(np.float32)
++        if verbose:
++            _log(f"筌?Ŋ?わ옙??占쎌끏?뤄옙 ({time.perf_counter() - t_cast:.1f}s)", indent=2)
++
+         probs = []
+         for i, m in enumerate(self.models):
+             if verbose:
+-                _log(f"紐⑤뜽 {i + 1}/{n_models} ?덉륫 以?({n_rows:,}??...", indent=2)
++                _log(f"筌뤴뫀??{i + 1}/{n_models} 占쎌굙筌ο옙 餓ο옙 ({n_rows:,}占쎈뻬)...", indent=2)
+                 t0 = time.perf_counter()
+-            probs.append(m.predict_proba(df[feature_cols])[:, 1])
++            probs.append(m.predict_proba(X)[:, 1])
+             if verbose:
+-                _log(f"紐⑤뜽 {i + 1}/{n_models} ?꾨즺 ({time.perf_counter() - t0:.1f}s)", indent=2)
++                _log(f"筌뤴뫀??{i + 1}/{n_models} 占쎌끏?뤄옙 ({time.perf_counter() - t0:.1f}s)", indent=2)
++        
++        self.last_probs = probs
++
+         if verbose:
+-            _log("?숈긽釉?soft-voting ?됯퇏 怨꾩궛...", indent=2)
++            _log("占쎈린占쎄맒?됵옙 soft-voting 占쎈즸域뱄옙 ?④쑴沅?..", indent=2)
+         return np.mean(probs, axis=0)
+ 
+ 
+ def _jsonable(value):
++    if isinstance(value, dict):
++        return {k: _jsonable(v) for k, v in value.items()}
++    if isinstance(value, list):
++        return [_jsonable(v) for v in value]
+     if isinstance(value, (np.integer, np.floating)):
+         return value.item()
+     if isinstance(value, np.ndarray):
+         return value.tolist()
+     if isinstance(value, pd.Timestamp):
+         return value.isoformat()
+-    if pd.isna(value):
+-        return None
++    if isinstance(value, (str, bool, int, float, type(None))):
++        if pd.isna(value):
++            return None
+     return value
+ 
+ 
+@@ -744,10 +764,10 @@ def load_saved_ensemble(cfg, *, require_threshold: bool = False) -> dict:
+ 
+     models = []
+     for i, p in enumerate(model_paths):
+-        _log(f"joblib 濡쒕뱶 {i + 1}/{len(model_paths)}: {p.name}", indent=1)
++        _log(f"joblib 嚥≪뮆諭?{i + 1}/{len(model_paths)}: {p.name}", indent=1)
+         t0 = time.perf_counter()
+         models.append(joblib.load(p))
+-        _log(f"  ??{time.perf_counter() - t0:.1f}s", indent=2)
++        _log(f"  占쎈꼥 {time.perf_counter() - t0:.1f}s", indent=2)
+     ensemble = SavedEnsemble(models)
+ 
+     return {
+@@ -777,24 +797,24 @@ def run_threshold_tuning_from_saved_model(
+     from config.path_utils import val_calib_missing_hint
+ 
+     pipeline_t0 = time.perf_counter()
+-    _log_step("?쒖옉", "?꾧퀎媛??쒕떇 (val_calib)")
++    _log_step("占쎈뻻占쎌삂", "占쎌뿫?④쑨而?占쎈뮔占쎈뻼 (val_calib)")
+ 
+     calib_path = Path(cfg.VAL_CALIB_PATH)
+     if not calib_path.is_file():
+         raise FileNotFoundError(val_calib_missing_hint(calib_path))
+ 
+-    _log_step("1/5", "寃쎈줈쨌?곗텧臾??뺤씤")
++    _log_step("1/5", "野껋럥以덉쮯占쎄텦?곗뮆窺 占쎌넇占쎌뵥")
+     validate_path_contract(list(getattr(cfg, "REQUIRED_DATA_PATHS", [])))
+ 
+-    _log_step("2/5", "?숈긽釉?紐⑤뜽 濡쒕뱶")
++    _log_step("2/5", "占쎈린占쎄맒?됵옙 筌뤴뫀??嚥≪뮆諭?)
+     artifacts = load_saved_ensemble(cfg, require_threshold=False)
+     feature_cols = artifacts["feature_cols"]
+     ensemble = artifacts["ensemble"]
+ 
+-    _log_step("3/5", f"val_calib parquet ?쎄린 ??{calib_path.name}")
++    _log_step("3/5", f"val_calib parquet 占쎌뵭疫뀐옙 - {calib_path.name}")
+     t_read = time.perf_counter()
+     df_calib = pd.read_parquet(cfg.VAL_CALIB_PATH)
+-    _log(f"濡쒕뱶 ?꾨즺: {len(df_calib):,}??({time.perf_counter() - t_read:.1f}s)", indent=1)
++    _log(f"嚥≪뮆諭?占쎌끏?뤄옙: {len(df_calib):,}占쎈뻬 ({time.perf_counter() - t_read:.1f}s)", indent=1)
+     _validate_columns(df_calib, feature_cols + [cfg.TARGET_COL], dataset_name="val_calib")
+     calib_summary = _summarize_dataset(
+         df_calib, cfg, label="Calibration Data", path=cfg.VAL_CALIB_PATH
+@@ -802,16 +822,16 @@ def run_threshold_tuning_from_saved_model(
+ 
+     _log_step(
+         "4/5",
+-        f"?숈긽釉?異붾줎 ??{len(df_calib):,}??횞 {len(ensemble.models)}紐⑤뜽 "
+-        "(媛???ㅻ옒 嫄몃┫ ???덉쓬)",
++        f"占쎈린占쎄맒?됵옙 ?곕뗀以?- {len(df_calib):,}占쎈뻬 ??{len(ensemble.models)}筌뤴뫀??"
++        "(揶쏉옙占쎌삢 占쎌궎占쎌삋 椰꾨챶??占쎈땾 占쎌뿳占쎌벉)",
+     )
+     t_inf = time.perf_counter()
+     y_calib_prob = ensemble.predict_proba(df_calib, feature_cols, verbose=True)
+-    _log(f"異붾줎 ?꾩껜 ?꾨즺 ({time.perf_counter() - t_inf:.1f}s)", indent=1)
++    _log(f"?곕뗀以?占쎌읈筌ｏ옙 占쎌끏?뤄옙 ({time.perf_counter() - t_inf:.1f}s)", indent=1)
+ 
+     fpr_levels = list(cfg.FPR_LEVELS)
+     save_cap = getattr(cfg, "SAVE_OPERATING_FPR_CAP", getattr(cfg, "MAX_FPR", None))
+-    _log_step("5/5", f"?꾧퀎媛?洹몃━??+ FPR ??(n_grid={cfg.THRESHOLD_N_GRID})")
++    _log_step("5/5", f"占쎌뿫?④쑨而?域밸챶?곻옙諭?+ FPR 占쎈ご (n_grid={cfg.THRESHOLD_N_GRID})")
+     tuner = ThresholdTuner(
+         fpr_levels=fpr_levels,
+         n_grid=cfg.THRESHOLD_N_GRID,
+@@ -820,7 +840,7 @@ def run_threshold_tuning_from_saved_model(
+     tuner_result = tuner.fit(df_calib[cfg.TARGET_COL].values, y_calib_prob)
+ 
+     if show_plot:
+-        _log("\n[FPR?밨ecall 怨≪꽑 洹몃━湲?", indent=0)
++        _log("\n[FPR-Recall ?ⓥ돦苑?域밸챶?곫묾占?", indent=0)
+         tuner.plot()
+ 
+     threshold = float(tuner.best_threshold) if save_cap is not None else None
+@@ -847,20 +867,20 @@ def run_threshold_tuning_from_saved_model(
+     csv_paths: dict[str, str] = {}
+     if save:
+         result_dir = getattr(cfg, "THRESHOLD_RESULT_DIR", None) or artifacts["save_dir"]
+-        _log("CSV ???以?..", indent=1)
++        _log("CSV 占쏙옙占쏙옙??餓ο옙...", indent=1)
+         csv_paths = save_threshold_tuning_csvs(tuner, cfg, result_dir)
+         for label, path in csv_paths.items():
+             _log(f"  {label}: {path}", indent=2)
+ 
+         if threshold is None:
+-            print("?좑툘  SAVE_OPERATING_FPR_CAP=None ??best_threshold.json 誘몄???)
++            print("[Warning]  SAVE_OPERATING_FPR_CAP=None - best_threshold.json 沃섎챷占쏙옙占쎌삢")
+         else:
+             threshold_metadata["csv_paths"] = csv_paths
+             with open(artifacts["threshold_path"], "w", encoding="utf-8") as f:
+                 json.dump(threshold_metadata, f, ensure_ascii=False, indent=2)
+             print(f"Saved threshold metadata: {artifacts['threshold_path']}")
+ 
+-    _log_step("?꾨즺", f"珥??뚯슂 {time.perf_counter() - pipeline_t0:.1f}s")
++    _log_step("占쎌끏?뤄옙", f"?ο옙 占쎈꺖占쎌뒄 {time.perf_counter() - pipeline_t0:.1f}s")
+ 
+     return {
+         "tuner": tuner,
+@@ -960,9 +980,9 @@ def run_final_evaluation_from_saved_model(
+     }
+ 
+ 
+-# ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
+-#  MAIN PIPELINE  (?명듃遺???? ?몄텧??
+-# ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
++# 占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름
++#  MAIN PIPELINE  (占쎈걗占쎈뱜?븝옙 占쎈립 占쏙옙占?占쎌깈?곗뮇??
++# 占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름
+ 
+ def run_evaluation(
+     cfg,
+@@ -972,15 +992,15 @@ def run_evaluation(
+     show_plots: bool = True,
+ ) -> dict:
+     """
+-    짠7 + 짠8 ?꾩껜 ?됯? ?뚯씠?꾨씪??
++    吏? + 吏? 占쎌읈筌ｏ옙 占쎈즸揶쏉옙 占쎈솁占쎌뵠占쎈늄占쎌뵬占쎌뵥.
+ 
+     Parameters
+     ----------
+-    cfg           : threshold + final_eval ?ㅼ젙???⑹튇 媛앹껜
+-                    (VAL_CALIB_PATH, TEST_PATH, MAX_FPR, THRESHOLD_N_GRID ??
+-    ensemble      : ?숈뒿 ?꾨즺??UnderbaggingEnsemble 媛앹껜
+-    feature_cols  : 紐⑤뜽???ъ슜???쇱쿂 由ъ뒪??-    show_plots    : ?쒓컖???щ?
++    cfg           : threshold + final_eval 占쎄퐬占쎌젟占쎌뱽 占쎈?燁삼옙 揶쏆빘猿?+                    (VAL_CALIB_PATH, TEST_PATH, MAX_FPR, THRESHOLD_N_GRID 占쎈쾻)
++    ensemble      : 占쎈린占쎈뮸 占쎌끏?룸슢留?UnderbaggingEnsemble 揶쏆빘猿?+    feature_cols  : 筌뤴뫀?쏙옙肉?占쎄텢占쎌뒠占쎈쭆 占쎈돗筌ｏ옙 ?귐딅뮞占쎈뱜
++    show_plots    : 占쎈뻻揶쏄낱??占쎈연?븝옙
+ 
+     Returns
+     -------
+@@ -996,13 +1016,13 @@ def run_evaluation(
+         required.append(("test feature data", "file", cfg.TEST_PATH))
+     validate_path_contract(required)
+ 
+-    # ?? 1. ?곗씠??濡쒕뱶 ????????????????????????????????????????
+-    print("?뱛  ?됯? ?곗씠??濡쒕뱶 以?..")
++    # 占쏙옙占쏙옙占쏙옙 1. 占쎈쑓占쎌뵠占쎄숲 嚥≪뮆諭?占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙
++    print("[Data]  占쎈즸揶쏉옙 占쎈쑓占쎌뵠占쎄숲 嚥≪뮆諭?餓ο옙...")
+     df_calib = pd.read_parquet(cfg.VAL_CALIB_PATH)
+     df_test  = pd.read_parquet(cfg.TEST_PATH)
+ 
+-    # ?? 2. 짠7 ?꾧퀎媛??쒕떇 (val_calib 湲곕컲) ???????????????????
+-    print("\n?렞  짠7 ?꾧퀎媛??쒕떇 (val_calib)...")
++    # 占쏙옙占쏙옙占쏙옙 2. 吏? 占쎌뿫?④쑨而?占쎈뮔占쎈뻼 (val_calib 疫꿸퀡而? 占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占?+    print("\n[Tune]  吏? 占쎌뿫?④쑨而?占쎈뮔占쎈뻼 (val_calib)...")
+     y_calib_true = df_calib[cfg.TARGET_COL].values
+     y_calib_prob = ensemble.predict_proba(df_calib, feature_cols)
+ 
+@@ -1020,8 +1040,8 @@ def run_evaluation(
+ 
+     threshold = tuner.best_threshold
+ 
+-    # ?? 3. 짠8.1 ???⑥쐞 ?됯? (test) ??????????????????????????
+-    print("\n?뱤  짠8.1 ???⑥쐞 ?됯? (test)...")
++    # 占쏙옙占쏙옙占쏙옙 3. 吏?.1 占쎈뻬 占쎈뼊占쎌맄 占쎈즸揶쏉옙 (test) 占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙
++    print("\n[Eval]  吏?.1 占쎈뻬 占쎈뼊占쎌맄 占쎈즸揶쏉옙 (test)...")
+     y_test_true = df_test[cfg.TARGET_COL].values
+     y_test_prob = ensemble.predict_proba(df_test, feature_cols)
+ 
+@@ -1029,8 +1049,8 @@ def run_evaluation(
+         y_test_true, y_test_prob, threshold, title="Test Set"
+     )
+ 
+-    # ?? 4. 짠8.2 媛쒖껜 ?⑥쐞 濡ㅻ쭅 ?됯? (test) ??????????????????
+-    print("\n?봽  짠8.2 媛쒖껜 ?⑥쐞 濡ㅻ쭅 ?됯? (test)...")
++    # 占쏙옙占쏙옙占쏙옙 4. 吏?.2 揶쏆뮇猿?占쎈뼊占쎌맄 嚥▲끇彛?占쎈즸揶쏉옙 (test) 占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙占쏙옙
++    print("\n[Roll]  吏?.2 揶쏆뮇猿?占쎈뼊占쎌맄 嚥▲끇彛?占쎈즸揶쏉옙 (test)...")
+     ev = EntityLevelEvaluator(
+         serial_col=cfg.SERIAL_COL,
+         date_col=cfg.DATE_COL,
+@@ -1047,3 +1067,462 @@ def run_evaluation(
+         row_result    = row_result,
+         entity_result = entity_result,
+     )
++
++
++# 占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름
++#  吏?.3  DISK-LEVEL EVALUATION & GRID SEARCH (Base Serial Basis)
++# 占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름占쎈름
++
++def prepare_disk_level_data(
++    df: pd.DataFrame,
++    y_prob: np.ndarray,
++    target_col: str = "failure",
++    serial_col: str = "serial_number",
++    date_col: str = "date",
++) -> tuple[list[dict], int, int]:
++    """Base Serial 占쎈뼊占쎌맄嚥∽옙 ?⑥쥙??占쎌젟占쎄맒 占쎈연?븝옙 獄쏉옙 占쎌굙筌β돧?쀧몴占?占쎄텊筌욑옙 占쎈뻻?④쑴肉?占쎈쑓占쎌뵠占쎄숲?쒙옙 域밸챶竊숃쳸遺우뵠 筌ｌ꼶?곻옙釉?옙肉?獄쏆꼹??"""
++    df = df.copy()
++    df["y_prob"] = np.asarray(y_prob)
++    df["base_serial"] = df[serial_col].str.replace(r'_\d+$', '', regex=True)
++    
++    # 域밸챶竊숃쳸遺우뵠 占쎄쉐占쎈뮟 占쎈샨占쎄맒占쎌뱽 占쎌맄占쎈퉸 占쎈뻻?귐딅섰?⑨옙 占쎄텊筌욎뮆以?占쎄텢占쎌읈 占쎌젟占쎌졊
++    df = df.sort_values(["base_serial", date_col])
++    
++    disks_data = []
++    for base_serial, grp in df.groupby("base_serial"):
++        disks_data.append({
++            "base_serial": base_serial,
++            "is_failed": int(grp[target_col].max()),
++            "probs": grp["y_prob"].values,
++            "dates": grp[date_col].values,
++            "failures": grp[target_col].values
++        })
++        
++    n_failed = sum(d["is_failed"] for d in disks_data)
++    n_normal = len(disks_data) - n_failed
++    return disks_data, n_failed, n_normal
++
++
++def run_disk_level_grid_search(
++    disks_data: list[dict],
++    thresholds: np.ndarray,
++    min_alarms_list: list[int],
++    n_failed_disks: int,
++    n_normal_disks: int,
++    log_dir: str | None = None,
++) -> pd.DataFrame:
++    """占쎈땾占쎈린占쎌읅 占쎄쉐筌욑옙(n占쎈떄占쎌맄 占쎌넇?쒙옙)占쎌뱽 占쎄텢占쎌뒠占쎈퉸 域밸챶?곻옙諭?占쎈７占쎌뵥占쎈뱜?쒙옙 ?λ뜃?э옙??獄쏉옙?귐딇겧 占쏙옙占?占쎌몵嚥∽옙 占쎄튂占쎄퉳占쎈릭占쎈연 FAR/Recall 占쎄텦?곤옙."""
++    import os
++    is_failed_arr = np.array([d["is_failed"] for d in disks_data], dtype=bool)
++    nth_probs_matrix = np.zeros((len(disks_data), len(min_alarms_list)))
++    
++    for idx, disk in enumerate(disks_data):
++        probs_desc = np.sort(disk["probs"])[::-1]
++        for n_idx, n in enumerate(min_alarms_list):
++            if len(probs_desc) >= n:
++                nth_probs_matrix[idx, n_idx] = probs_desc[n - 1]
++            else:
++                nth_probs_matrix[idx, n_idx] = 0.0
++                
++    grid_results = []
++    total_combinations = len(min_alarms_list) * len(thresholds)
++    count = 0
++    log_lines = []
++    
++    for n_idx, n in enumerate(min_alarms_list):
++        nth_p = nth_probs_matrix[:, n_idx]
++        for T in thresholds:
++            count += 1
++            is_alarmed = (nth_p >= T)
++            tps = np.sum(is_alarmed & is_failed_arr)
++            fps = np.sum(is_alarmed & ~is_failed_arr)
++            
++            recall = tps / n_failed_disks if n_failed_disks > 0 else 0.0
++            far = fps / n_normal_disks if n_normal_disks > 0 else 0.0
++            grid_results.append({
++                "threshold": T,
++                "min_alarms": n,
++                "recall": recall,
++                "far": far,
++                "tps": tps,
++                "fps": fps
++            })
++            
++            # 占쎈뼄占쎈뻬嚥≪뮄??占쎌뵬占쎌뵥 占쎈７筌랃옙 疫꿸퀡以?+            log_lines.append(
++                f"[{count:04d}/{total_combinations:04d}] n={n}, T={T:.4f} -> "
++                f"Recall={recall*100:.2f}%, FAR={far*100:.4f}%, TP={tps}, FP={fps}\n"
++            )
++            
++            # 雅뚯눛逾억옙苑?占쎈걗占쎈뱜?븝옙 ?⑥눖占쏙옙占쎈릭 獄쎻뫗占쏙옙 獄쏉옙 筌뤴뫀?뀐옙苑ｏ쭕怨몄뱽 占쎌맄占쎈퉸 500占쎌돳筌띾뜄???곗뮆??+            if count % 500 == 0 or count == total_combinations:
++                prdef plot_disk_far_recall_curves(
++    df_grid: pd.DataFrame,
++    min_alarms_list: list[int],
++    opt_row: pd.Series | None = None,
++):
++    """筌ㅼ뮇??占쎈르占쎌뿺 獄쏆뮇源?옙?륅옙??n 鈺곌퀗援붻퉪占?占쎈탵占쎈뮞占쎄쾿 占쎌쟿甕곤옙 FAR-Recall ?ⓥ돦苑?占쎈뻻揶쏄낱??獄쏉옙 雅뚯눘??筌욑옙占쎌젎 筌띾뜇沅?"""
++    plt.figure(figsize=(11, 8.5))
++    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
++    
++    # 1. 揶쏉옙 n占쎈퓠 占쏙옙占쏙옙釉??ⓥ돦苑?域밸챶?곫묾占?獄쏉옙 0.1%, 0.5%, 1.0% 占쎌뒲占쎌겫占쎌젎 筌띾뜇沅?+    for i, n in enumerate(min_alarms_list):
++        sub_df = df_grid[df_grid["min_alarms"] == n].sort_values("threshold", ascending=False)
++        plt.plot(sub_df["far"] * 100, sub_df["recall"] * 100, color=colors[i], lw=2.5,
++                 label=f"Min Alarms (n) = {n}")
++                 
++        # 0.1%, 0.5%, 1.0% FAR 筌욑옙占쎌젎 筌띾뜇沅?獄쏉옙 占쎈볩옙?わ옙??占쎈ご占쎈뻻
++        for cap, label in zip([0.001, 0.005, 0.010], ["0.1%", "0.5%", "1.0%"]):
++            # 占쎈퉸占쎈뼣 cap 占쎌뵠占쎈릭占쎌벥 占쎈쑓占쎌뵠占쎄숲 占쎈툡占쎄숲筌랃옙
++            valid_pts = sub_df[sub_df["far"] <= cap]
++            if not valid_pts.empty:
++                # 域뱄옙 餓ο옙 占쎌삺占쎌겱占쎌몛(Recall)占쎌뵠 揶쏉옙占쎌삢 占쎈꼥占쏙옙占?占쎈７占쎌뵥占쎈뱜 筌≪뼐由?+                best_pt = valid_pts.loc[valid_pts["recall"].idxmax()]
++                x_val = best_pt["far"] * 100
++                y_val = best_pt["recall"] * 100
++                T_val = best_pt["threshold"]
++                
++                # 占쎌젎 筌〓씧由?(野껓옙占쏙옙占쏙옙源?占쎈믭옙紐®뵳?占쏙옙 占쎌뿳占쎈뮉 ?뚎됱뵬占쎈즲占쎈뱜)
++                plt.scatter(x_val, y_val, color=colors[i], edgecolors="black", s=80, marker="o", zorder=4)
++                
++                # 占쎈볩옙?わ옙??占쎈ご占쎈뻻 (占쎄퐣嚥∽옙 野껊??귨쭪占?占쎈륫占쎈즲嚥∽옙 占쎄쉭嚥∽옙 占쎌궎占쎈늄占쎈?沃섎챷苑?鈺곌퀣??
++                y_offset = -3.0 + (i * 0.6)
++                plt.annotate(
++                    f"{label} (T={T_val:.3f})",
++                    xy=(x_val, y_val),
++                    xytext=(x_val + 0.12, y_val + y_offset),
++                    fontsize=8,
++                    fontweight="bold",
++                    color=colors[i],
++                    bbox=dict(boxstyle="round,pad=0.15", fc="white", ec=colors[i], alpha=0.8),
++                    arrowprops=dict(arrowstyle="->", color=colors[i], alpha=0.4)
++                )
++
++    # 2. 占쏙옙占썲칰占?占쎌궎占쎄튂占쎌몛 疫꿸퀣占쏙옙 占쎈땾筌욑옙 占쎌젎占쎄퐨 揶쏉옙占쎌뵠占쎈굡 域밸챶?곫묾占?+    target_fars = [0.1, 0.5, 1.0]
++    for tf in target_fars:
++        plt.axvline(tf, color="#7f7f7f", linestyle=":", alpha=0.6, lw=1.2)
++        
++    if opt_row is not None:
++        plt.scatter(opt_row["far"] * 100, opt_row["recall"] * 100, color="crimson", s=200, marker="*", zorder=5,
++                    label=f"Selected Point (n={int(opt_row['min_alarms'])} @ T={opt_row['threshold']:.3f})")
++                
++    plt.xlim([-0.05, 4.0]) # 占쎈뼄占쎌뒠 甕곕뗄??FAR 4% 占쎌뵠占쎈릭)占쎈퓠 ?λ뜆?륅옙??筌띿쉸??揶쏉옙占쎈즴占쎄쉐 域밸갭占쏙옙占쎌넅
++    plt.ylim([-2.0, 102.0])
++    plt.xlabel("Disk-Level False Alarm Rate (Disk FAR, %)", fontsize=12, labelpad=8)
++    plt.ylabel("Disk-Level Recall (占쎄튂筌욑옙占쎌몛, %)", fontsize=12, labelpad=8)
++    plt.title("占쎈탵占쎈뮞占쎄쾿 占쎈뼊占쎌맄 FAR-Recall ?ⓥ돦苑?獄쏉옙 占쎌뒲占쎌겫占쎌젎 筌띾뜇沅?(n 獄쏉옙 FAR 疫꿸퀣占쏙옙)", fontsize=14, fontweight="bold", pad=15)
++    plt.legend(loc="lower right", fontsize=10.5)
++    plt.grid(True, linestyle=":", alpha=0.5)
++    plt.tight_layout()
++    plt.show()占??④쑴沅?+        max_consec = 0; curr_consec = 0
++        for val in y_pred:
++            if val == 1:
++                curr_consec += 1
++                if curr_consec > max_consec:
++                    max_consec = curr_consec
++            else:
++                curr_consec = 0
++        consec_lengths.append(max_consec)
++        alert_burdens.append(total_alarms)
++        
++        if is_failed == 1:
++            if is_alarmed == 1:
++                tps += 1
++                trigger_idx = np.where(y_pred == 1)[0][n - 1]
++                trigger_date = pd.to_datetime(disk["dates"][trigger_idx])
++                last_date = pd.to_datetime(disk["dates"][-1])
++                
++                lead_times.append((last_date - trigger_date).days)
++                
++                alarms_after = y_pred[trigger_idx:].sum()
++                days_after = len(y_pred[trigger_idx:])
++                persistences.append(alarms_after / days_after if days_after > 0 else 0.0)
++                fw_hits.append(1 if y_pred[failures == 1].sum() > 0 else 0)
++            else:
++                fns += 1
++                fw_hits.append(0)
++                
++            n_fw_rows = (failures == 1).sum()
++            n_non_fw_rows = (failures == 0).sum()
++            density_windows.append(y_pred[failures == 1].sum() / n_fw_rows if n_fw_rows > 0 else 0.0)
++            density_befores.append(y_pred[failures == 0].sum() / n_non_fw_rows if n_non_fw_rows > 0 else 0.0)
++        else:
++            if is_alarmed == 1:
++                fps += 1
++            else:
++                tns += 1
++                
++    mean_density_window = np.mean(density_windows) if density_windows else 0.0
++    mean_density_before = np.mean(density_befores) if density_befores else 0.0
++    max_probs = [np.max(d["probs"]) for d in disks_data]
++    y_true_disks = [d["is_failed"] for d in disks_data]
++    
++    res = {
++        "threshold": T,
++        "min_alarms": n,
++        "recall": tps / n_failed_disks if n_failed_disks > 0 else 0.0,
++        "far": fps / n_normal_disks if n_normal_disks > 0 else 0.0,
++        "precision": tps / (tps + fps) if (tps + fps) > 0 else 0.0,
++        "lead_time": np.mean(lead_times) if lead_times else 0.0,
++        "persistence": np.mean(persistences) if persistences else 0.0,
++        "fw_hit_rate": np.mean(fw_hits) if fw_hits else 0.0,
++        "density_ratio": mean_density_window / mean_density_before if mean_density_before > 0 else 0.0,
++        "consec_len": np.mean(consec_lengths),
++        "alert_burden": np.mean(alert_burdens),
++        "calibration": np.mean((np.array(max_probs) - np.array(y_true_disks))**2)
++    }
++    if far_cap is not None:
++        res["far_cap"] = far_cap
++    return res
++
++
++def plot_disk_far_recall_curves(
++    df_grid: pd.DataFrame,
++    min_alarms_list: list[int],
++    opt_row: pd.Series,
++):
++    """筌ㅼ뮇??占쎈르占쎌뿺 獄쏆뮇源?옙?륅옙??n 鈺곌퀗援붻퉪占?占쎈탵占쎈뮞占쎄쾿 占쎌쟿甕곤옙 FAR-Recall ?ⓥ돦苑?占쎈뻻揶쏄낱??"""
++    plt.figure(figsize=(10, 8))
++    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
++    
++    for i, n in enumerate(min_alarms_list):
++        sub_df = df_grid[df_grid["min_alarms"] == n].sort_values("threshold", ascending=False)
++        plt.plot(sub_df["far"] * 100, sub_df["recall"] * 100, color=colors[i], lw=2.5,
++                 label=f"Min Alarms (n) = {n}")
++                 
++    plt.axvline(1.0, color="gray", linestyle="--", alpha=0.5, label="FAR Limit (1.0%)")
++    plt.scatter(opt_row["far"] * 100, opt_row["recall"] * 100, color="crimson", s=180, zorder=5,
++                label=f"Best Operating Point\\n(n={int(opt_row['min_alarms'])} @ T={opt_row['threshold']:.2f})")
++                
++    plt.xlim([-0.1, 8.0])
++    plt.ylim([-1.0, 101.0])
++    plt.xlabel("Disk-Level False Alarm Rate (Disk FAR, %)", fontsize=12, labelpad=8)
++    plt.ylabel("Disk-Level Recall (占쎄튂筌욑옙占쎌몛, %)", fontsize=12, labelpad=8)
++    plt.title("占쎈탵占쎈뮞占쎄쾿 占쎈뼊占쎌맄 FAR-Recall ?ⓥ돦苑?(占쎈르占쎌뿺 鈺곌퀗援?n 疫꿸퀣占쏙옙)", fontsize=14, fontweight="bold", pad=15)
++    plt.legend(loc="lower right", fontsize=10.5)
++    plt.grid(True, linestyle=":", alpha=0.6)
++    plt.tight_layout()
++    plt.show()
++
++
++def plot_detailed_disk_analysis(
++    stats: dict,
++    df_best_disk: pd.DataFrame,
++    tp: int,
++    fn: int,
++    fp: int,
++    tn: int,
++):
++    """筌ㅼ뮇??占쎌뒲占쎌겫占쎌젎占쎈퓠占쎄퐣占쎌벥 占쎈탵占쎈뮞占쎄쾿 Confusion Matrix 獄쏉옙 Lead Time, 占쎌궎占쎄튂 占쎌뵬占쎈땾 ?브쑵猷?占쎈뻻揶쏄낱??"""
++    import seaborn as sns
++    fig, axes = plt.subplots(1, 3, figsize=(21, 6))
++    
++    # 1) Confusion Matrix
++    ax = axes[0]
++    cm_disk = np.array([[tn, fp], [fn, tp]])
++    sns.heatmap(cm_disk, annot=False, fmt="", cmap="Oranges", cbar=True, square=True, ax=ax)
++    labels = ["Normal (0)", "Failure (1)"]
++    ax.set_xticks([0.5, 1.5]); ax.set_xticklabels(labels)
++    ax.set_yticks([0.5, 1.5]); ax.set_yticklabels(labels, rotation=0)
++    ax.set_xlabel("Predicted Label", fontweight="bold", labelpad=8)
++    ax.set_ylabel("True Label", fontweight="bold", labelpad=8)
++    ax.set_title(f"Disk-Level Confusion Matrix (n={stats['min_alarms']}, T={stats['threshold']:.2f})", fontsize=12, fontweight="bold", pad=12)
++    
++    total_d = cm_disk.sum()
++    thresh_d = cm_disk.max() / 2.
++    for i in range(2):
++        for j in range(2):
++            count = cm_disk[i, j]
++            pct = count / total_d * 100
++            ax.text(j + 0.5, i + 0.5, f"{count:,}\\n({pct:.2f}%)",
++                     ha="center", va="center",
++                     color="white" if count > thresh_d else "black",
++                     fontsize=11, fontweight="bold")
++                     
++    # 2) Lead Time Distribution
++    ax = axes[1]
++    df_lt_detected = df_best_disk[df_best_disk["lead_time"].notna()]
++    if len(df_lt_detected) > 0:
++        sns.histplot(df_lt_detected["lead_time"], bins=20, kde=True, color="purple", edgecolor="white", ax=ax)
++        ax.axvline(stats["lead_time"], color="red", linestyle="--", linewidth=1.5,
++                   label=f"Mean: {stats['lead_time']:.1f}占쎌뵬")
++        ax.set_xlabel("Lead Time (Days before failure)", fontsize=11)
++        ax.set_ylabel("Failed Disks Count", fontsize=11)
++        ax.set_title("?⑥쥙??占쎄튂筌욑옙 ?귐됰굡占쏙옙占쏙옙???브쑵猷?(Lead Time)", fontsize=12, fontweight="bold", pad=12)
++        ax.legend()
++    else:
++        ax.text(0.5, 0.5, "占쎄튂筌욑옙占쎈쭆 ?⑥쥙??占쎈탵占쎈뮞占쎄쾿 占쎈씨占쎌벉", ha="center", va="center", transform=ax.transAxes)
++    ax.grid(axis="y", linestyle=":", alpha=0.6)
++    
++    # 3) False Alarm Days Distribution
++    ax = axes[2]
++    df_fa_disks = df_best_disk[(df_best_disk["is_failed"] == 0) & (df_best_disk["total_alarms"] > 0)]
++    if len(df_fa_disks) > 0:
++        sns.histplot(df_fa_disks["total_alarms"], bins=15, kde=False, color="coral", edgecolor="white", ax=ax)
++        ax.set_xlabel("False Alarm Days (Per Disk)", fontsize=11)
++        ax.set_ylabel("Normal Disks Count", fontsize=11)
++        ax.set_title("占쎌궎占쎄튂占쎈쭆 占쎌젟占쎄맒 占쎈탵占쎈뮞占쎄쾿占쎌벥 占쎌궎占쎄튂 占쎌뵬占쎈땾 ?브쑵猷?, fontsize=12, fontweight="bold", pad=12)
++    else:
++        ax.text(0.5, 0.5, "占쎌궎占쎄튂占쎈쭆 占쎌젟占쎄맒 占쎈탵占쎈뮞占쎄쾿 占쎈씨占쎌벉", ha="center", va="center", transform=ax.transAxes)
++    ax.grid(axis="y", linestyle=":", alpha=0.6)
++    
++    plt.suptitle("筌ㅼ뮇??占쎌뒲占쎌겫占쎌젎 占쎈탵占쎈뮞占쎄쾿 占쎈뼊占쎌맄 占쎄쉐占쎈뮟 占쎈뼎筌ο옙 ?브쑴苑?, fontsize=15, fontweight="bold", y=0.98)
++    plt.tight_layout()
++    plt.show()
++
++
++def run_disk_level_threshold_tuning(cfg, show_plots: bool = True) -> dict:
++    """占쎈탵占쎈뮞占쎄쾿 占쎈뼊占쎌맄 占쎌뿫?④쑨而?占쎈뮔占쎈뻼 獄쏉옙 域밸챶?곻옙諭?占쎄퐣燁삼옙 占쎌읈筌ｏ옙 占쎈솁占쎌뵠占쎈늄占쎌뵬占쎌뵥 占쎈뼄占쎈뻬."""
++    import time
++    import os
++    import pandas as pd
++    import numpy as np
++    import matplotlib.pyplot as plt
++    
++    pipeline_t0 = time.perf_counter()
++    
++    # 1. 筌뤴뫀??獄쏉옙 占쎈쑓占쎌뵠占쎄숲 嚥≪뮆諭?+    print("占쎌쐨占?筌ㅼ뮇伊?筌뤴뫀??獄쏉옙 占쎈쑓占쎌뵠占쎄숲 嚥≪뮆諭?餓ο옙...")
++    artifacts = load_saved_ensemble(cfg, require_threshold=False)
++    feature_cols = artifacts["feature_cols"]
++    ensemble = artifacts["ensemble"]
++    
++    df_val = pd.read_parquet(cfg.VAL_CALIB_PATH)
++    
++    # 2. 占쎌굙筌ο옙 占쎌넇?쒙옙 ?④쑴沅?獄쏉옙 筌?Ŋ??+    cache_path = os.path.join(cfg.MODEL_SAVE_DIR, "val_calib_probs.npy")
++    if os.path.exists(cache_path):
++        print("占쎌뇡?わ옙 筌?Ŋ?놅옙留?占쎌굙筌ο옙 占쎌넇?쒙옙 占쎈솁占쎌뵬 嚥≪뮆諭?餓ο옙...")
++        y_prob = np.load(cache_path)
++    else:
++        print("占쎌쐨占?占쎈린占쎄맒?됵옙 占쎌굙筌ο옙 占쎈땾占쎈뻬 餓ο옙...")
++        y_prob = ensemble.predict_proba(df_val, feature_cols, verbose=True)
++        np.save(cache_path, y_prob)
++        print("[OK] 占쎌굙筌ο옙 占쎌끏?뤄옙 獄쏉옙 筌?Ŋ??占쏙옙占쏙옙??占쎌끏?뤄옙!")
++        
++    df_val['y_prob'] = y_prob
++    
++    # 3. 占쎈탵占쎈뮞占쎄쾿 占쎈뼊占쎌맄 占쎈쑓占쎌뵠占쎄숲 ?닌딄쉐
++    print("占쎌쐨占?占쎈뻻?귐딅섰癰귨옙 占쎌젟占쎌졊 獄쏉옙 域밸챶竊숋옙??占쎈쑓占쎌뵠占쎄숲 占쎌삂占쎄쉐 餓ο옙...")
++    disks_data, n_failed_disks, n_normal_disks = prepare_disk_level_data(
++        df_val, y_prob, target_col=cfg.TARGET_COL, serial_col=cfg.SERIAL_COL, date_col=cfg.DATE_COL
++    )
++    print(f"[OK] 占쎈쑓占쎌뵠占쎄숲 癰귨옙占쎌넎 占쎌끏?뤄옙: ?ο옙 {len(disks_data):,}揶쏉옙 占쎈탵占쎈뮞占쎄쾿")
++    
++    # 4. 域밸챶?곻옙諭?占쎄퐣燁삼옙 占쎈땾占쎈뻬
++    thresholds = np.linspace(0.001, 0.999, 1000)
++    min_alarms_list = [1, 2, 3, 4, 5]
++    print(f"占쎌쐨占??λ뜃?э옙??甕겸돧苑ｏ옙??域밸챶?곻옙諭?占쎄퐣燁삼옙 占쎈땾占쎈뻬 餓ο옙...")
++    df_grid = run_disk_level_grid_search(disks_data, thresholds, min_alarms_list, n_failed_disks, n_normal_disks, log_dir=cfg.MODEL_SAVE_DIR)
++    
++    # 域밸챶?곻옙諭?占쎄퐣燁삼옙 野껉퀗??占쎌읈筌ｏ옙 CSV 占쎈솁占쎌뵬嚥∽옙 占쏙옙占쏙옙??+    grid_csv_path = os.path.join(cfg.MODEL_SAVE_DIR, "disk_level_grid_search_results.csv")
++    df_grid.to_csv(grid_csv_path, index=False, encoding='utf-8-sig')
++    print(f"[OK] 占쎈탵占쎈뮞占쎄쾿 占쎈뼊占쎌맄 5,000揶쏉옙 鈺곌퀬鍮 域밸챶?곻옙諭?占쎄퐣燁삼옙 野껉퀗??CSV 占쏙옙占쏙옙??占쎌끏?뤄옙: {grid_csv_path}")
++    
++    # 5. 占쎌궎占쎄튂占쎌몛 占쎄맒占쎈립癰귨옙 筌ㅼ뮇?삼옙???④쑴沅?+    target_far_caps = [0.001, 0.005, 0.010, 0.030, 0.050]
++    detailed_best_points = []
++    for cap in target_far_caps:
++        valid_rows = df_grid[df_grid['far'] <= cap]
++        if len(valid_rows) == 0:
++            continue
++        best_row = valid_rows.loc[valid_rows['recall'].idxmax()]
++        det = evaluate_detailed_disk_point(
++            disks_data, best_row['threshold'], int(best_row['min_alarms']),
++            n_failed_disks, n_normal_disks, far_cap=cap
++        )
++        detailed_best_points.append(det)
++        
++    df_detailed_best = pd.DataFrame(detailed_best_points)
++    df_detailed_best.to_csv(os.path.join(cfg.MODEL_SAVE_DIR, "disk_level_best_operating_points_detailed.csv"), index=False, encoding='utf-8-sig')
++    
++    # 占쎈ご ?곗뮆??+    print("=" * 115)
++    print(f"{'FPR Cap':^10} | {'min_alarms':^10} | {'threshold':^10} | {'Disk Recall':^12} | {'Disk FAR':^10} | {'Lead Time':^10} | {'Precision':^10} | {'Persist.':^10}")
++    print("=" * 115)
++    for det in detailed_best_points:
++        print(f"{det['far_cap']*100:8.1f}% | {int(det['min_alarms']):9d} | {det['threshold']:9.2f} | "
++              f"{det['recall']*100:10.2f}% | {det['far']*100:8.2f}% | {det['lead_time']:8.1f}占쎌뵬 | "
++              f"{det['precision']:9.4f} | {det['persistence']:8.4f}")
++    print("=" * 115)
++    
++    # 6. 占쎈뻻揶쏄낱??+    if show_plots:
++        opt_row = df_grid[df_grid['far'] <= 0.01].sort_values('recall', ascending=False).iloc[0]
++        plot_disk_far_recall_curves(df_grid, min_alarms_list, opt_row)
++        
++        BEST_T = float(opt_row['threshold'])
++        BEST_N = int(opt_row['min_alarms'])
++        
++        print(f"占쎌쐝占?占쎌읅占쎌뒠占쎈막 筌ㅼ뮇??占쎌뒲占쎌겫占쎌젎: 占쎌뿫?④쑨而?T = {BEST_T:.2f}, 筌ㅼ뮇??占쎈르占쎌뿺 占쎈땾 n = {BEST_N}")
++        stats = evaluate_detailed_disk_point(disks_data, BEST_T, BEST_N, n_failed_disks, n_normal_disks)
++        
++        best_disk_records = []
++        for disk in disks_data:
++            probs = disk['probs']
++            y_pred = (probs >= BEST_T).astype(int)
++            total_alarms = y_pred.sum()
++            is_alarmed = int(total_alarms >= BEST_N)
++            
++            max_consec = 0; curr_consec = 0
++            for val in y_pred:
++                if val == 1:
++                    curr_consec += 1
++                    if curr_consec > max_consec: max_consec = curr_consec
++                else: curr_consec = 0
++                    
++            lead_time = np.nan
++            persistence = np.nan
++            if disk['is_failed'] == 1 and is_alarmed == 1:
++                trigger_idx = np.where(y_pred == 1)[0][BEST_N - 1]
++                trigger_date = pd.to_datetime(disk['dates'][trigger_idx])
++                last_date = pd.to_datetime(disk['dates'][-1])
++                lead_time = (last_date - trigger_date).days
++                
++                alarms_after = y_pred[trigger_idx:].sum()
++                days_after = len(y_pred[trigger_idx:])
++                persistence = alarms_after / days_after if days_after > 0 else 0.0
++                
++            best_disk_records.append({
++                'base_serial': disk['base_serial'],
++                'is_failed': disk['is_failed'],
++                'is_alarmed': is_alarmed,
++                'total_alarms': total_alarms,
++                'max_consec': max_consec,
++                'lead_time': lead_time,
++                'persistence': persistence
++            })
++            
++        df_best_disk = pd.DataFrame(best_disk_records)
++        tp = int(((df_best_disk['is_failed'] == 1) & (df_best_disk['is_alarmed'] == 1)).sum())
++        fn = int(((df_best_disk['is_failed'] == 1) & (df_best_disk['is_alarmed'] == 0)).sum())
++        fp = int(((df_best_disk['is_failed'] == 0) & (df_best_disk['is_alarmed'] == 1)).sum())
++        tn = int(((df_best_disk['is_failed'] == 0) & (df_best_disk['is_alarmed'] == 0)).sum())
++        
++        print("=" * 65)
++        print(f"  [筌ㅼ뮇??占쎌뒲占쎌겫占쎌젎 筌ㅼ뮇伊?占쎈뮞占쎄퉬占쎄틧] T = {BEST_T:.2f}, n = {BEST_N}")
++        print("=" * 65)
++        print(f"  Disk Recall (占쎄튂筌욑옙占쎌몛)          : {stats['recall']*100:.2f}%")
++        print(f"  Disk FAR (占쎌궎占쎄튂占쎌몛)             : {stats['far']*100:.2f}%")
++        print(f"  Precision (野껋럡??占쎈뻿?띔퀡猷?        : {stats['precision']:.4f}")
++        print(f"  Brier Score (Calibration)     : {stats['calibration']:.5f}")
++        print(f"  Average Lead Time (?귐됰굡占쏙옙占쏙옙??   : {stats['lead_time']:.2f}占쎌뵬")
++        print(f"  Alarm Persistence (筌욑옙占쎈꺗占쎈즲)    : {stats['persistence']*100:.2f}%")
++        print(f"  Failure Window Hit Rate       : {stats['fw_hit_rate']*100:.2f}%")
++        print(f"  Alarm Density Ratio (筌앹빓占쏙옙??옙)   : {stats['density_ratio']:.2f}獄쏉옙")
++        print(f"  Average Consecutive Length    : {stats['consec_len']:.2f}占쎌뵬")
++        print(f"  Average Alert Burden          : {stats['alert_burden']:.2f}占쎌뵬")
++        print("=" * 65)
++        
++        plot_detailed_disk_analysis(stats, df_best_disk, tp, fn, fp, tn)
++        
++    print(f"[OK] 占쎈탵占쎈뮞占쎄쾿 占쎈뼊占쎌맄 占쎈뮔占쎈뻼 占쎌끏?뤄옙! (?ο옙 占쎈꺖占쎌뒄: {time.perf_counter() - pipeline_t0:.1f}?ο옙)")
++    return {
++        "df_grid": df_grid,
++        "detailed_best_points": detailed_best_points,
++    }
++
++

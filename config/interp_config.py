@@ -25,7 +25,7 @@ SERIAL_COL = "serial_number"
 DATE_COL   = "date"
 
 # ── §9.1 전역적 해석 (Global SHAP) ──────────────────────────
-SHAP_SAMPLE_SIZE  = 2000   # SHAP 계산에 사용할 샘플 수 (클수록 정밀하나 느림)
+SHAP_SAMPLE_SIZE  = 6000   # SHAP 계산에 사용할 샘플 수 (클수록 정밀하나 느림)
 SHAP_MAX_DISPLAY  = 27     # Summary Plot에 표시할 최대 피처 수
 SHAP_SEED         = 42     # 재현성 보장 시드
 

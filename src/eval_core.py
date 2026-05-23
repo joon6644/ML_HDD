@@ -448,18 +448,22 @@ class EntityLevelEvaluator:
         df: pd.DataFrame,
         y_prob: np.ndarray,
         threshold: float,
+        min_alarms: int = 1,
+        window_size: int | None = None,
     ) -> dict:
         """
         Parameters
         ----------
-        df        : test 데이터 (serial_number, date, failure 컬럼 포함)
-                    인덱스가 y_prob 와 정렬되어 있어야 함.
-        y_prob    : 앙상블 예측 확률 (df 와 동일 순서)
-        threshold : 임계값 (ThresholdTuner.best_threshold 사용 권장)
+        df         : test 데이터 (serial_number, date, failure 컬럼 포함)
+                     인덱스가 y_prob 와 정렬되어 있어야 함.
+        y_prob     : 앙상블 예측 확률 (df 와 동일 순서)
+        threshold  : 임계값
+        min_alarms : 최소 알람 발생 횟수 (n)
+        window_size: 롤링 윈도우 크기 (W), None 또는 0이면 전체 누적 방식 적용.
 
         Returns
         -------
-        dict: hit_rate, miss_rate, fa_rate, mean_lead_time, entity_df
+        dict: hit_rate, miss_rate, fa_rate, mean_lead_time_days, entity_df, etc.
         """
         df = df[[self.serial_col, self.date_col, self.target_col]].copy()
         df["_prob"]  = np.asarray(y_prob)
@@ -471,13 +475,30 @@ class EntityLevelEvaluator:
             grp = grp.sort_values(self.date_col)
 
             is_failure = int(grp[self.target_col].max())  # 1 if any row == 1
-            alarm_rows = grp[grp["_alarm"] == 1]
-            has_alarm  = len(alarm_rows) > 0
+            alarm_seq = grp["_alarm"].values
+            dates_seq = grp[self.date_col].values
 
-            last_date  = grp[self.date_col].max()
-            first_alarm_date = alarm_rows[self.date_col].min() if has_alarm else pd.NaT
+            has_alarm = False
+            first_alarm_date = pd.NaT
 
-            # Lead Time: last_date - first_alarm_date (일수)
+            if len(alarm_seq) >= min_alarms:
+                if window_size is None or window_size <= 0:
+                    # Cumulative: check if total alarms >= min_alarms
+                    cum_alarms = alarm_seq.sum()
+                    if cum_alarms >= min_alarms:
+                        has_alarm = True
+                        trigger_idx = np.where(alarm_seq == 1)[0][min_alarms - 1]
+                        first_alarm_date = pd.to_datetime(dates_seq[trigger_idx])
+                else:
+                    # Rolling window: check rolling sum
+                    rolling_alarms = pd.Series(alarm_seq).rolling(window=window_size, min_periods=1).sum().values
+                    alarm_idx_list = np.where(rolling_alarms >= min_alarms)[0]
+                    if len(alarm_idx_list) > 0:
+                        has_alarm = True
+                        trigger_idx = alarm_idx_list[0]
+                        first_alarm_date = pd.to_datetime(dates_seq[trigger_idx])
+
+            last_date = grp[self.date_col].max()
             lead_time = (
                 (last_date - first_alarm_date).days
                 if (has_alarm and is_failure)
@@ -490,43 +511,46 @@ class EntityLevelEvaluator:
                 has_alarm     = int(has_alarm),
                 first_alarm_date = first_alarm_date,
                 last_date     = last_date,
-                lead_time_days= lead_time,
+                lead_time_days = lead_time,
             ))
 
         entity_df = pd.DataFrame(records)
 
-        # ── 지표 계산 ─────────────────────────────────────────
-        fail_ent   = entity_df[entity_df["is_failure"] == 1]
-        normal_ent = entity_df[entity_df["is_failure"] == 0]
+        # 3) Calculate Hit / Miss / FA Rate
+        fail_entities = entity_df[entity_df["is_failure"] == 1]
+        norm_entities = entity_df[entity_df["is_failure"] == 0]
 
-        n_fail   = len(fail_ent)
-        n_normal = len(normal_ent)
+        n_fail = len(fail_entities)
+        n_normal = len(norm_entities)
 
-        hit_count  = int(fail_ent["has_alarm"].sum())
+        hit_count = int(fail_entities["has_alarm"].sum()) if n_fail > 0 else 0
         miss_count = n_fail - hit_count
-        fa_count   = int(normal_ent["has_alarm"].sum())
+        fa_count = int(norm_entities["has_alarm"].sum()) if n_normal > 0 else 0
 
-        hit_rate  = hit_count  / n_fail   if n_fail   > 0 else 0.0
-        miss_rate = miss_count / n_fail   if n_fail   > 0 else 0.0
-        fa_rate   = fa_count   / n_normal if n_normal > 0 else 0.0
+        hit_rate = hit_count / n_fail if n_fail > 0 else 0.0
+        miss_rate = miss_count / n_fail if n_fail > 0 else 0.0
+        fa_rate = fa_count / n_normal if n_normal > 0 else 0.0
 
-        hit_lead_times = entity_df[
+        # Average Lead Time (only on Hit fail entities)
+        mean_lt = entity_df[
             (entity_df["is_failure"] == 1) & (entity_df["has_alarm"] == 1)
-        ]["lead_time_days"]
-        mean_lead_time = float(hit_lead_times.mean()) if len(hit_lead_times) > 0 else np.nan
+        ]["lead_time_days"].mean()
 
-        result = dict(
-            n_failure_entities = n_fail,
-            n_normal_entities  = n_normal,
-            hit_count    = hit_count,
-            miss_count   = miss_count,
-            fa_count     = fa_count,
-            hit_rate     = hit_rate,
-            miss_rate    = miss_rate,
-            fa_rate      = fa_rate,
-            mean_lead_time_days = mean_lead_time,
-            entity_df    = entity_df,
-        )
+        if np.isnan(mean_lt):
+            mean_lt = np.nan
+
+        result = {
+            "n_failure_entities": n_fail,
+            "n_normal_entities": n_normal,
+            "hit_count": hit_count,
+            "miss_count": miss_count,
+            "fa_count": fa_count,
+            "hit_rate": hit_rate,
+            "miss_rate": miss_rate,
+            "fa_rate": fa_rate,
+            "mean_lead_time_days": mean_lt,
+            "entity_df": entity_df,
+        }
 
         self._print_result(result)
         return result
@@ -625,16 +649,19 @@ class SavedEnsemble:
         n_rows = len(df)
         n_models = len(self.models)
         probs = []
+        # Convert to numpy float32 once to avoid massive conversion overhead in loops
+        X = df[feature_cols].values.astype(np.float32)
         for i, m in enumerate(self.models):
             if verbose:
                 _log(f"모델 {i + 1}/{n_models} 예측 중 ({n_rows:,}행)...", indent=2)
                 t0 = time.perf_counter()
-            probs.append(m.predict_proba(df[feature_cols])[:, 1])
+            probs.append(m.predict_proba(X)[:, 1])
             if verbose:
                 _log(f"모델 {i + 1}/{n_models} 완료 ({time.perf_counter() - t0:.1f}s)", indent=2)
         if verbose:
             _log("앙상블 soft-voting 평균 계산...", indent=2)
         return np.mean(probs, axis=0)
+
 
 
 def _jsonable(value):
@@ -717,10 +744,16 @@ def load_saved_ensemble(cfg, *, require_threshold: bool = False) -> dict:
 
     threshold_meta = None
     threshold = None
+    min_alarms = 1
+    window_size = None
     if require_threshold:
         with open(threshold_path, encoding="utf-8") as f:
             threshold_meta = json.load(f)
         threshold = float(threshold_meta["threshold"])
+        min_alarms = int(threshold_meta.get("min_alarms", 1))
+        window_size = threshold_meta.get("window_size", None)
+        if window_size is not None:
+            window_size = int(window_size)
 
         if threshold_meta.get("n_features") is not None and threshold_meta["n_features"] != len(feature_cols):
             raise ValueError(
@@ -757,6 +790,8 @@ def load_saved_ensemble(cfg, *, require_threshold: bool = False) -> dict:
         "model_paths": model_paths,
         "feature_cols": feature_cols,
         "threshold": threshold,
+        "min_alarms": min_alarms,
+        "window_size": window_size,
         "threshold_meta": threshold_meta,
         "ensemble": ensemble,
     }
@@ -879,8 +914,13 @@ def run_final_evaluation_from_saved_model(
     show_plots: bool = True,
     save: bool = True,
 ) -> dict:
-    """README section 8: evaluate a saved ensemble on the held-out test set."""
+    """README section 8: evaluate a saved ensemble on the held-out test set (Rolling Disk-Level Evaluation)."""
     import json
+    import os
+    import time
+    from pathlib import Path
+    import pandas as pd
+    import numpy as np
     from datetime import datetime
     from config.path_utils import validate_path_contract
 
@@ -890,6 +930,8 @@ def run_final_evaluation_from_saved_model(
     feature_cols = artifacts["feature_cols"]
     ensemble = artifacts["ensemble"]
     threshold = artifacts["threshold"]
+    min_alarms = artifacts["min_alarms"]
+    window_size = getattr(cfg, "ALARM_WINDOW", artifacts["window_size"])
 
     df_test = pd.read_parquet(cfg.TEST_PATH)
     _validate_columns(
@@ -901,31 +943,118 @@ def run_final_evaluation_from_saved_model(
         df_test, cfg, label="Test Data", path=cfg.TEST_PATH
     )
 
-    y_test_prob = ensemble.predict_proba(df_test, feature_cols)
+    # Prediction
+    cache_path = os.path.join(cfg.MODEL_SAVE_DIR, "test_probs.npy")
+    use_cache = False
+    if os.path.exists(cache_path):
+        try:
+            cached_len = len(np.load(cache_path, mmap_mode='r'))
+            if cached_len == len(df_test):
+                use_cache = True
+            else:
+                _log_step("⚠️", f"캐시 크기 불일치 (캐시: {cached_len}행, 현재 데이터: {len(df_test)}행) -> 캐시 무효화")
+        except Exception:
+            _log_step("⚠️", "캐시 파일 손상 또는 읽기 실패 -> 캐시 무효화")
 
-    row_result = evaluate_row_level(
-        df_test[cfg.TARGET_COL].values,
-        y_test_prob,
-        threshold,
-        title="Test Set",
+    if use_cache:
+        _log_step("♻️", "캐시된 예측 확률 파일 로드 중...")
+        y_test_prob = np.load(cache_path)
+    else:
+        _log_step("🔄", "앙상블 예측 수행 중...")
+        y_test_prob = ensemble.predict_proba(df_test, feature_cols, verbose=True)
+        if save:
+            np.save(cache_path, y_test_prob)
+
+    df_test['y_prob'] = y_test_prob
+
+    # Prepare Disk Data
+    _log_step("🔄", "시리얼별 정렬 및 그룹화 데이터 작성 중...")
+    disks_data, n_failed_disks, n_normal_disks = prepare_disk_level_data(
+        df_test, y_test_prob, target_col=cfg.TARGET_COL, serial_col=cfg.SERIAL_COL, date_col=cfg.DATE_COL
     )
 
-    ev = EntityLevelEvaluator(
-        serial_col=cfg.SERIAL_COL,
-        date_col=cfg.DATE_COL,
-        target_col=cfg.TARGET_COL,
+    # Perform grid search for curve plotting
+    _log_step("🔄", "초고속 벡터화 그리드 서치 수행 중...")
+    grid_thresholds = np.linspace(0.001, 0.999, 1000)
+    min_alarms_list = [1, 2, 3, 4, 5]
+    df_grid = run_disk_level_grid_search(
+        disks_data, grid_thresholds, min_alarms_list, n_failed_disks, n_normal_disks,
+        log_dir=cfg.MODEL_SAVE_DIR, window_size=window_size
     )
-    entity_result = ev.evaluate(df_test, y_test_prob, threshold)
-    if show_plots:
-        EntityLevelEvaluator.plot(entity_result)
 
-    entity_df = entity_result["entity_df"]
-    miss_list = entity_df[(entity_df["is_failure"] == 1) & (entity_df["has_alarm"] == 0)]
-    print(f"Missed failure entities: {len(miss_list)}")
+    if save:
+        grid_csv_path = os.path.join(cfg.MODEL_SAVE_DIR, 'disk_level_grid_search_results_test.csv')
+        df_grid.to_csv(grid_csv_path, index=False, encoding='utf-8-sig')
 
-    entity_summary = {k: _jsonable(v) for k, v in entity_result.items() if k != "entity_df"}
+    # Evaluate detailed point
+    _log_step("🎯", f"최적 운영점 적용: 임계값 T = {threshold:.4f}, n = {min_alarms} (window_size={window_size})")
+    stats = evaluate_detailed_disk_point(
+        disks_data, threshold, min_alarms, n_failed_disks, n_normal_disks, window_size=window_size
+    )
+
+    # Construct individual disk details (df_best_disk)
+    best_disk_records = []
+    for disk in disks_data:
+        probs = disk['probs']
+        y_pred = (probs >= threshold).astype(int)
+        total_alarms = y_pred.sum()
+        
+        if window_size is not None and window_size > 0:
+            rolling_alarms = pd.Series(y_pred).rolling(window=window_size, min_periods=1).sum().values
+            is_alarmed = int((rolling_alarms >= min_alarms).any())
+        else:
+            is_alarmed = int(total_alarms >= min_alarms)
+        
+        max_consec = 0; curr_consec = 0
+        for val in y_pred:
+            if val == 1:
+                curr_consec += 1
+                if curr_consec > max_consec: max_consec = curr_consec
+            else: curr_consec = 0
+                
+        lead_time = np.nan
+        persistence = np.nan
+        
+        if disk['is_failed'] == 1 and is_alarmed == 1:
+            if window_size is not None and window_size > 0:
+                rolling_alarms = pd.Series(y_pred).rolling(window=window_size, min_periods=1).sum().values
+                trigger_idx = np.where(rolling_alarms >= min_alarms)[0][0]
+            else:
+                trigger_idx = np.where(y_pred == 1)[0][min_alarms - 1]
+                
+            trigger_date = pd.to_datetime(disk['dates'][trigger_idx])
+            last_date = pd.to_datetime(disk['dates'][-1])
+            lead_time = (last_date - trigger_date).days
+            
+            alarms_after = y_pred[trigger_idx:].sum()
+            days_after = len(y_pred[trigger_idx:])
+            persistence = alarms_after / days_after if days_after > 0 else 0.0
+            
+        best_disk_records.append({
+            'base_serial': disk['base_serial'],
+            'is_failed': disk['is_failed'],
+            'is_alarmed': is_alarmed,
+            'total_alarms': total_alarms,
+            'max_consec': max_consec,
+            'lead_time': lead_time,
+            'persistence': persistence
+        })
+
+    df_best_disk = pd.DataFrame(best_disk_records)
+    if save:
+        best_disk_csv_path = os.path.join(cfg.MODEL_SAVE_DIR, 'best_disk_lead_time_distribution_test.csv')
+        df_best_disk.to_csv(best_disk_csv_path, index=False, encoding='utf-8-sig')
+
+    tp = int(((df_best_disk['is_failed'] == 1) & (df_best_disk['is_alarmed'] == 1)).sum())
+    fn = int(((df_best_disk['is_failed'] == 1) & (df_best_disk['is_alarmed'] == 0)).sum())
+    fp = int(((df_best_disk['is_failed'] == 0) & (df_best_disk['is_alarmed'] == 1)).sum())
+    tn = int(((df_best_disk['is_failed'] == 0) & (df_best_disk['is_alarmed'] == 0)).sum())
+
+    # Build final evaluation metadata
     evaluation_metadata = {
         "threshold": threshold,
+        "min_alarms": min_alarms,
+        "window_size": window_size,
         "threshold_path": str(artifacts["threshold_path"]),
         "threshold_metadata": artifacts["threshold_meta"],
         "test_path": cfg.TEST_PATH,
@@ -937,9 +1066,19 @@ def run_final_evaluation_from_saved_model(
         "model_files": [p.name for p in artifacts["model_paths"]],
         "feature_cols_path": str(artifacts["feature_cols_path"]),
         "n_features": len(feature_cols),
-        "row_result": {k: _jsonable(v) for k, v in row_result.items()},
-        "entity_result": entity_summary,
-        "missed_failure_entities": int(len(miss_list)),
+        "confusion_matrix": {"tp": tp, "fn": fn, "fp": fp, "tn": tn},
+        "metrics": {
+            "recall": float(stats["recall"]),
+            "far": float(stats["far"]),
+            "precision": float(stats["precision"]),
+            "calibration": float(stats["calibration"]),
+            "lead_time": float(stats["lead_time"]),
+            "persistence": float(stats["persistence"]),
+            "fw_hit_rate": float(stats["fw_hit_rate"]),
+            "density_ratio": float(stats["density_ratio"]),
+            "consec_len": float(stats["consec_len"]),
+            "alert_burden": float(stats["alert_burden"])
+        },
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
 
@@ -949,9 +1088,15 @@ def run_final_evaluation_from_saved_model(
             json.dump(evaluation_metadata, f, ensure_ascii=False, indent=2)
         print(f"Saved final evaluation metadata: {result_path}")
 
+    # Plotting if requested
+    if show_plots:
+        opt_row_visual = df_grid[(df_grid['threshold'].round(4) == round(threshold, 4)) & (df_grid['min_alarms'] == min_alarms)].iloc[0]
+        plot_disk_far_recall_curves(df_grid, min_alarms_list, opt_row_visual)
+        plot_detailed_disk_analysis(stats, df_best_disk, tp, fn, fp, tn)
+
+    miss_list = df_best_disk[(df_best_disk['is_failed'] == 1) & (df_best_disk['is_alarmed'] == 0)]
+
     return {
-        "row_result": row_result,
-        "entity_result": entity_result,
         "miss_list": miss_list,
         "evaluation_metadata": evaluation_metadata,
         "result_path": result_path,
@@ -1047,3 +1192,806 @@ def run_evaluation(
         row_result    = row_result,
         entity_result = entity_result,
     )
+
+
+# ============================================================================
+#  디바이스(디스크) 단위 집계, 롤링 윈도우 평가 및 시각화 함수군
+# ============================================================================
+
+def get_rolling_n_largest(probs: np.ndarray, n: int, W: int) -> float:
+    """확률 배열 probs에서 크기가 W인 모든 슬라이딩 윈도우 중 n번째로 큰 값의 최댓값을 반환"""
+    if len(probs) < n:
+        return 0.0
+    if len(probs) < W:
+        return np.sort(probs)[-n]
+    try:
+        from numpy.lib.stride_tricks import sliding_window_view
+        windows = sliding_window_view(probs, W)
+        return np.partition(windows, -n, axis=1)[:, -n].max()
+    except Exception:
+        # fallback
+        max_val = 0.0
+        for i in range(len(probs) - W + 1):
+            window = probs[i:i+W]
+            val = np.partition(window, -n)[-n]
+            if val > max_val:
+                max_val = val
+        return max_val
+
+
+def prepare_disk_level_data(
+    df: pd.DataFrame,
+    y_prob: np.ndarray,
+    target_col: str = "failure",
+    serial_col: str = "serial_number",
+    date_col: str = "date",
+) -> tuple[list[dict], int, int]:
+    """Base Serial 단위로 고장/정상 여부 및 예측 확률을 날짜 순서로 그룹화하여 반환."""
+    df = df.copy()
+    df["y_prob"] = np.asarray(y_prob)
+    df["base_serial"] = df[serial_col].str.replace(r'_\d+$', '', regex=True)
+    
+    # 그룹바이 성능 향상을 위해 시리얼과 날짜 정렬
+    df = df.sort_values(["base_serial", date_col])
+    
+    disks_data = []
+    for base_serial, grp in df.groupby("base_serial"):
+        disks_data.append({
+            "base_serial": base_serial,
+            "is_failed": int(grp[target_col].max()),
+            "probs": grp["y_prob"].values,
+            "dates": grp[date_col].values,
+            "failures": grp[target_col].values
+        })
+        
+    n_failed = sum(d["is_failed"] for d in disks_data)
+    n_normal = len(disks_data) - n_failed
+    return disks_data, n_failed, n_normal
+
+
+def run_disk_level_grid_search(
+    disks_data: list[dict],
+    thresholds: np.ndarray,
+    min_alarms_list: list[int],
+    n_failed_disks: int,
+    n_normal_disks: int,
+    log_dir: str | None = None,
+    window_size: int | None = None,
+) -> pd.DataFrame:
+    """그리드 서치를 벡터화하여 고속 실행하며, window_size에 따른 롤링 윈도우 알림 제약을 지원"""
+    import os
+    is_failed_arr = np.array([d['is_failed'] for d in disks_data], dtype=bool)
+    nth_probs_matrix = np.zeros((len(disks_data), len(min_alarms_list)))
+    
+    for idx, disk in enumerate(disks_data):
+        probs = disk['probs']
+        for n_idx, n in enumerate(min_alarms_list):
+            if len(probs) < n:
+                nth_probs_matrix[idx, n_idx] = 0.0
+            elif window_size is None or window_size <= 0:
+                probs_desc = np.sort(probs)[::-1]
+                nth_probs_matrix[idx, n_idx] = probs_desc[n - 1]
+            else:
+                nth_probs_matrix[idx, n_idx] = get_rolling_n_largest(probs, n, window_size)
+                
+    grid_results = []
+    total_combinations = len(min_alarms_list) * len(thresholds)
+    count = 0
+    log_lines = []
+    t_grid = time.perf_counter()
+    
+    for n_idx, n in enumerate(min_alarms_list):
+        nth_p = nth_probs_matrix[:, n_idx]
+        for T in thresholds:
+            count += 1
+            is_alarmed = (nth_p >= T)
+            tps = np.sum(is_alarmed & is_failed_arr)
+            fps = np.sum(is_alarmed & ~is_failed_arr)
+            
+            recall = tps / n_failed_disks if n_failed_disks > 0 else 0.0
+            far = fps / n_normal_disks if n_normal_disks > 0 else 0.0
+            grid_results.append({
+                'threshold': T,
+                'min_alarms': n,
+                'recall': recall,
+                'far': far,
+                'tps': tps,
+                'fps': fps
+            })
+            
+            log_lines.append(
+                f'[{count:04d}/{total_combinations:04d}] n={n}, T={T:.4f} -> '
+                f'Recall={recall*100:.2f}%, FAR={far*100:.4f}%, TP={tps}, FP={fps}\n'
+            )
+            
+            if count % 500 == 0 or count == total_combinations:
+                elapsed = time.perf_counter() - t_grid
+                pct = 100.0 * count / total_combinations
+                print(f'  ... {count:,}/{total_combinations:,} ({pct:.1f}%) - {elapsed:.1f}s')
+                
+    df_grid = pd.DataFrame(grid_results)
+    if log_dir:
+        log_path = os.path.join(log_dir, 'disk_level_grid_search.log')
+        with open(log_path, 'w', encoding='utf-8') as f:
+            f.writelines(log_lines)
+    return df_grid
+
+
+def evaluate_detailed_disk_point(
+    disks_data: list[dict],
+    T: float,
+    n: int,
+    n_failed_disks: int,
+    n_normal_disks: int,
+    far_cap: float | None = None,
+    window_size: int | None = None,
+) -> dict:
+    """선택된 단일 운영점에서 세부 지표(Brier Score, 리드타임, Persistence 등) 평가"""
+    tps = 0
+    fns = 0
+    fps = 0
+    tns = 0
+    lead_times = []
+    persistences = []
+    fw_hits = []
+    density_windows = []
+    density_befores = []
+    consec_lengths = []
+    alert_burdens = []
+    
+    for disk in disks_data:
+        probs = disk['probs']
+        failures = disk['failures']
+        is_failed = disk['is_failed']
+        
+        y_pred = (probs >= T).astype(int)
+        total_alarms = y_pred.sum()
+        
+        if window_size is not None and window_size > 0:
+            rolling_alarms = pd.Series(y_pred).rolling(window=window_size, min_periods=1).sum().values
+            is_alarmed = int((rolling_alarms >= n).any())
+        else:
+            is_alarmed = int(total_alarms >= n)
+        
+        max_consec = 0; curr_consec = 0
+        for val in y_pred:
+            if val == 1:
+                curr_consec += 1
+                if curr_consec > max_consec:
+                    max_consec = curr_consec
+            else:
+                curr_consec = 0
+        consec_lengths.append(max_consec)
+        alert_burdens.append(total_alarms)
+        
+        if is_failed == 1:
+            if is_alarmed == 1:
+                tps += 1
+                if window_size is not None and window_size > 0:
+                    trigger_idx = np.where(rolling_alarms >= n)[0][0]
+                else:
+                    trigger_idx = np.where(y_pred == 1)[0][n - 1]
+                trigger_date = pd.to_datetime(disk['dates'][trigger_idx])
+                last_date = pd.to_datetime(disk['dates'][-1])
+                
+                lead_times.append((last_date - trigger_date).days)
+                
+                alarms_after = y_pred[trigger_idx:].sum()
+                days_after = len(y_pred[trigger_idx:])
+                persistences.append(alarms_after / days_after if days_after > 0 else 0.0)
+                fw_hits.append(1 if y_pred[failures == 1].sum() > 0 else 0)
+            else:
+                fns += 1
+                fw_hits.append(0)
+                
+            n_fw_rows = (failures == 1).sum()
+            n_non_fw_rows = (failures == 0).sum()
+            density_windows.append(y_pred[failures == 1].sum() / n_fw_rows if n_fw_rows > 0 else 0.0)
+            density_befores.append(y_pred[failures == 0].sum() / n_non_fw_rows if n_non_fw_rows > 0 else 0.0)
+        else:
+            if is_alarmed == 1:
+                fps += 1
+            else:
+                tns += 1
+                
+    mean_density_window = np.mean(density_windows) if density_windows else 0.0
+    mean_density_before = np.mean(density_befores) if density_befores else 0.0
+    max_probs = [np.max(d['probs']) for d in disks_data]
+    y_true_disks = [d['is_failed'] for d in disks_data]
+    
+    res = {
+        'threshold': T,
+        'min_alarms': n,
+        'recall': tps / n_failed_disks if n_failed_disks > 0 else 0.0,
+        'far': fps / n_normal_disks if n_normal_disks > 0 else 0.0,
+        'precision': tps / (tps + fps) if (tps + fps) > 0 else 0.0,
+        'lead_time': np.mean(lead_times) if lead_times else 0.0,
+        'persistence': np.mean(persistences) if persistences else 0.0,
+        'fw_hit_rate': np.mean(fw_hits) if fw_hits else 0.0,
+        'density_ratio': mean_density_window / mean_density_before if mean_density_before > 0 else 0.0,
+        'consec_len': np.mean(consec_lengths),
+        'alert_burden': np.mean(alert_burdens),
+        'calibration': np.mean((np.array(max_probs) - np.array(y_true_disks))**2)
+    }
+    if far_cap is not None:
+        res['far_cap'] = far_cap
+    return res
+
+
+def plot_disk_far_recall_curves(
+    df_grid: pd.DataFrame,
+    min_alarms_list: list[int],
+    opt_row: pd.Series = None,
+):
+    """최소 알림 발생횟수 n 조건별 디스크 레벨 FAR-Recall 곡선 시각화 (x축 로그 스케일, y축 75% 제한)."""
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(11, 7.5))
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
+    
+    # 1. 각 n에 대한 곡선 플로팅
+    for i, n in enumerate(min_alarms_list):
+        sub_df = df_grid[df_grid["min_alarms"] == n].sort_values("threshold", ascending=False)
+        
+        # log scale 상에서 x <= 0인 값들을 제외하고 플로팅
+        plot_df = sub_df[sub_df["far"] > 0]
+        plt.plot(plot_df["far"] * 100, plot_df["recall"] * 100, color=colors[i], lw=2.5,
+                 label=f"n = {n}")
+
+    # 2. 기준선 표시 (0.1%, 0.5%, 1.0%, 2.0%, 5.0% FAR) 및 라벨 표시
+    target_fars = [0.1, 0.5, 1.0, 2.0, 5.0]
+    for tf in target_fars:
+        plt.axvline(tf, color="#7f7f7f", linestyle=":", alpha=0.6, lw=1.2)
+        # y축이 75%까지 제한되므로 텍스트 라벨을 y=72.5 부근에 배치
+        plt.text(tf, 72.5, f"{tf}% FAR", color="#555555", fontsize=9, ha="center", fontweight="normal")
+        
+    plt.xscale('log')
+    plt.xlim([0.008, 10.0])
+    plt.ylim([-1.0, 75.0])  # y축 범위를 75%로 제한하여 윗공간 낭비 제거
+    
+    # x축 틱 표시 및 포맷팅
+    plt.xticks(
+        [0.01, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0],
+        ["0.01", "0.05", "0.1", "0.2", "0.5", "1.0", "2.0", "5.0", "10.0"]
+    )
+    
+    plt.xlabel("Disk-Level False Alarm Rate (Disk FAR, %)", fontsize=11, labelpad=8)
+    plt.ylabel("Disk-Level Recall (%)", fontsize=11, labelpad=8)
+    plt.title("Disk-Level FAR-Recall Curve (Log Scale)", fontsize=12, fontweight="bold", pad=15)
+    plt.legend(loc="lower right", fontsize=10.5)
+    plt.grid(True, which="both", linestyle=":", alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_detailed_disk_analysis(
+    stats: dict,
+    df_best_disk: pd.DataFrame,
+    tp: int,
+    fn: int,
+    fp: int,
+    tn: int,
+):
+    """최적 운영점 성능 분석: Confusion Matrix (단독), 일반 분포 분석 (리드타임/오탐일수), 초기 100일 및 30일 확대 시각화."""
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    # 1) 혼동 행렬 (Confusion Matrix) 분리 출력
+    plt.figure(figsize=(6, 5.5))
+    cm_disk = np.array([[tn, fp], [fn, tp]])
+    sns.heatmap(cm_disk, annot=False, fmt="", cmap="Oranges", cbar=True, square=True)
+    labels = ["Normal (0)", "Failure (1)"]
+    plt.xticks([0.5, 1.5], labels)
+    plt.yticks([0.5, 1.5], labels, rotation=0)
+    plt.xlabel("Predicted Label", fontweight="bold", labelpad=8)
+    plt.ylabel("True Label", fontweight="bold", labelpad=8)
+    plt.title(f"Disk-Level Confusion Matrix\n(n={stats['min_alarms']}, T={stats['threshold']:.2f})", fontsize=12, fontweight="bold", pad=12)
+    
+    total_d = cm_disk.sum()
+    thresh_d = cm_disk.max() / 2.
+    for i in range(2):
+        for j in range(2):
+            count = cm_disk[i, j]
+            pct = count / total_d * 100
+            plt.text(j + 0.5, i + 0.5, f"{count:,}\n({pct:.2f}%)",
+                     ha="center", va="center",
+                     color="white" if count > thresh_d else "black",
+                     fontsize=11, fontweight="bold")
+    plt.tight_layout()
+    plt.show()
+
+    # 2) 분포 분석 (전체 리드타임 및 오탐 일수 분포) 출력
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+    
+    # 2-1) Lead Time Distribution (전체 범위)
+    ax = axes[0]
+    df_lt_detected = df_best_disk[df_best_disk["lead_time"].notna()]
+    median_lt = df_lt_detected["lead_time"].median() if len(df_lt_detected) > 0 else np.nan
+    if len(df_lt_detected) > 0:
+        sns.histplot(df_lt_detected["lead_time"], bins=20, kde=True, color="purple", edgecolor="white", ax=ax)
+        # 평균 표시
+        ax.axvline(stats["lead_time"], color="red", linestyle="--", linewidth=1.5,
+                   label=f"Mean: {stats['lead_time']:.1f}일")
+        # 중앙값 표시
+        ax.axvline(median_lt, color="orange", linestyle=":", linewidth=2.0,
+                   label=f"Median: {median_lt:.1f}일")
+        ax.set_xlabel("Lead Time (Days before failure)", fontsize=11)
+        ax.set_ylabel("Failed Disks Count", fontsize=11)
+        ax.set_title("고장 디스크별 리드타임 분포 (전체 Lead Time)", fontsize=12, fontweight="bold", pad=12)
+        ax.legend()
+    else:
+        ax.text(0.5, 0.5, "탐지된 고장 디스크 없음", ha="center", va="center", transform=ax.transAxes)
+    ax.grid(axis="y", linestyle=":", alpha=0.6)
+    
+    # 2-2) False Alarm Days Distribution
+    ax = axes[1]
+    df_fa_disks = df_best_disk[(df_best_disk["is_failed"] == 0) & (df_best_disk["total_alarms"] > 0)]
+    if len(df_fa_disks) > 0:
+        sns.histplot(df_fa_disks["total_alarms"], bins=15, kde=False, color="coral", edgecolor="white", ax=ax)
+        ax.set_xlabel("False Alarm Days (Per Disk)", fontsize=11)
+        ax.set_ylabel("Normal Disks Count", fontsize=11)
+        ax.set_title("정상 디스크별 오탐 일수 분포", fontsize=12, fontweight="bold", pad=12)
+    else:
+        ax.text(0.5, 0.5, "오탐 발생 정상 디스크 없음", ha="center", va="center", transform=ax.transAxes)
+    ax.grid(axis="y", linestyle=":", alpha=0.6)
+    
+    plt.suptitle("최적 운영점 디스크 단위 지표 전체 분포 분석", fontsize=14, fontweight="bold", y=0.98)
+    plt.tight_layout()
+    plt.show()
+
+    # 3) 고장 디스크별 리드타임 분포 (초기 100일 미만 구간 확대 단독 그래프)
+    plt.figure(figsize=(7, 5.5))
+    if len(df_lt_detected) > 0:
+        df_lt_zoomed_100 = df_lt_detected[df_lt_detected["lead_time"] <= 100]
+        sns.histplot(df_lt_zoomed_100["lead_time"], bins=15, kde=True, color="purple", edgecolor="white")
+        # 전체 데이터 기준의 평균과 중앙값 표시선 추가
+        plt.axvline(stats["lead_time"], color="red", linestyle="--", linewidth=1.5,
+                   label=f"Mean (All): {stats['lead_time']:.1f}일")
+        plt.axvline(median_lt, color="orange", linestyle=":", linewidth=2.0,
+                   label=f"Median (All): {median_lt:.1f}일")
+        plt.xlim([-5, 105])
+        plt.xlabel("Lead Time (Days before failure)", fontsize=11)
+        plt.ylabel("Failed Disks Count", fontsize=11)
+        plt.title("고장 디스크별 리드타임 분포 (초기 100일 구간 확대)", fontsize=12, fontweight="bold", pad=12)
+        plt.legend()
+    else:
+        plt.text(0.5, 0.5, "탐지된 고장 디스크 없음", ha="center", va="center")
+    plt.grid(axis="y", linestyle=":", alpha=0.6)
+    plt.tight_layout()
+    plt.show()
+
+    # 4) 추가 요건: 고장 디스크별 리드타임 분포 (초기 30일 미만 구간 확대 단독 그래프)
+    plt.figure(figsize=(7, 5.5))
+    if len(df_lt_detected) > 0:
+        # 초기 30일 이하 구간에 속하는 데이터만 필터링
+        df_lt_zoomed_30 = df_lt_detected[df_lt_detected["lead_time"] <= 30]
+        # 일당 1개의 막대를 가지도록 binwidth=1 로 세밀화 조정
+        sns.histplot(df_lt_zoomed_30["lead_time"], binwidth=1, kde=True, color="purple", edgecolor="white")
+        # 전체 데이터 기준의 평균과 중앙값 표시선 추가
+        plt.axvline(stats["lead_time"], color="red", linestyle="--", linewidth=1.5,
+                   label=f"Mean (All): {stats['lead_time']:.1f}일")
+        plt.axvline(median_lt, color="orange", linestyle=":", linewidth=2.0,
+                   label=f"Median (All): {median_lt:.1f}일")
+        plt.xlim([-2, 32])
+        plt.xlabel("Lead Time (Days before failure)", fontsize=11)
+        plt.ylabel("Failed Disks Count", fontsize=11)
+        plt.title("고장 디스크별 리드타임 분포 (초기 30일 구간 확대)", fontsize=12, fontweight="bold", pad=12)
+        plt.legend()
+    else:
+        plt.text(0.5, 0.5, "탐지된 고장 디스크 없음", ha="center", va="center")
+    plt.grid(axis="y", linestyle=":", alpha=0.6)
+    plt.tight_layout()
+    plt.show()
+
+
+def run_disk_level_threshold_tuning(cfg, show_plots: bool = True) -> dict:
+    """디스크 단위 임계값 튜닝 및 상세 평가 파이프라인 실행."""
+    import time
+    import os
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+    
+    pipeline_t0 = time.perf_counter()
+    
+    # 1. 모델 및 데이터 로드
+    print("🔄 모델 및 데이터 로드 중...")
+    artifacts = load_saved_ensemble(cfg, require_threshold=False)
+    feature_cols = artifacts["feature_cols"]
+    ensemble = artifacts["ensemble"]
+    
+    df_val = pd.read_parquet(cfg.VAL_CALIB_PATH)
+    
+    # 2. 예측 확률 획득
+    cache_path = os.path.join(cfg.MODEL_SAVE_DIR, "val_calib_probs.npy")
+    if os.path.exists(cache_path):
+        print("♻️ 캐시된 예측 확률 파일 로드 중...")
+        y_prob = np.load(cache_path)
+    else:
+        print("🔄 모델 예측 확률 계산 중...")
+        y_prob = ensemble.predict_proba(df_val, feature_cols, verbose=True)
+        np.save(cache_path, y_prob)
+        print("[OK] 예측 확률 계산 및 캐싱 완료.")
+        
+    df_val['y_prob'] = y_prob
+    
+    # 3. 디스크 단위 데이터 구성
+    print("🔄 시리얼별 정렬 및 그룹화 데이터 작성 중...")
+    disks_data, n_failed_disks, n_normal_disks = prepare_disk_level_data(
+        df_val, y_prob, target_col=cfg.TARGET_COL, serial_col=cfg.SERIAL_COL, date_col=cfg.DATE_COL
+    )
+    print(f"[OK] 데이터 변환 완료: 총 {len(disks_data):,}개 디스크")
+    
+    # 4. 그리드 서치 수행
+    thresholds = np.linspace(0.001, 0.999, 1000)
+    min_alarms_list = [1, 2, 3, 4, 5]
+    print(f"🔄 디스크 단위 그리드 서치 수행 중...")
+    window_size = getattr(cfg, 'ALARM_WINDOW', None)
+    df_grid = run_disk_level_grid_search(
+        disks_data, thresholds, min_alarms_list, n_failed_disks, n_normal_disks,
+        log_dir=cfg.MODEL_SAVE_DIR, window_size=window_size
+    )
+    
+    # 그리드 결과 CSV 저장
+    grid_csv_path = os.path.join(cfg.MODEL_SAVE_DIR, "disk_level_grid_search_results.csv")
+    df_grid.to_csv(grid_csv_path, index=False, encoding='utf-8-sig')
+    
+    # 5. 상세 평가 지점 도출
+    target_far_caps = [0.001, 0.005, 0.010, 0.020, 0.030, 0.050]
+    detailed_best_points = []
+    for cap in target_far_caps:
+        valid_rows = df_grid[df_grid['far'] <= cap]
+        if len(valid_rows) == 0:
+            continue
+        best_row = valid_rows.loc[valid_rows['recall'].idxmax()]
+        det = evaluate_detailed_disk_point(
+            disks_data, best_row['threshold'], int(best_row['min_alarms']),
+            n_failed_disks, n_normal_disks, far_cap=cap, window_size=window_size
+        )
+        detailed_best_points.append(det)
+        
+    df_detailed_best = pd.DataFrame(detailed_best_points)
+    df_detailed_best.to_csv(os.path.join(cfg.MODEL_SAVE_DIR, "disk_level_best_operating_points_detailed.csv"), index=False, encoding='utf-8-sig')
+    
+    # 출력
+    print("=" * 115)
+    print(f"{'FPR Cap':^10} | {'min_alarms':^10} | {'threshold':^10} | {'Disk Recall':^12} | {'Disk FAR':^10} | {'Lead Time':^10} | {'Precision':^10} | {'Persist.':^10}")
+    print("=" * 115)
+    for det in detailed_best_points:
+        print(f"{det['far_cap']*100:8.1f}% | {int(det['min_alarms']):9d} | {det['threshold']:9.2f} | "
+              f"{det['recall']*100:10.2f}% | {det['far']*100:8.2f}% | {det['lead_time']:8.1f}일 | "
+              f"{det['precision']:9.4f} | {det['persistence']:8.4f}")
+    print("=" * 115)
+    
+    # 6. 시각화
+    if show_plots:
+        opt_row = df_grid[df_grid['far'] <= 0.01].sort_values('recall', ascending=False).iloc[0]
+        plot_disk_far_recall_curves(df_grid, min_alarms_list, opt_row)
+        
+        BEST_T = float(opt_row['threshold'])
+        BEST_N = int(opt_row['min_alarms'])
+        
+        print(f"🎯 적용할 최적 운영점: 임계값 T = {BEST_T:.2f}, 최소 알람 수 n = {BEST_N}")
+        stats = evaluate_detailed_disk_point(
+            disks_data, BEST_T, BEST_N, n_failed_disks, n_normal_disks, window_size=window_size
+        )
+        
+        best_disk_records = []
+        for disk in disks_data:
+            probs = disk['probs']
+            y_pred = (probs >= BEST_T).astype(int)
+            total_alarms = y_pred.sum()
+            
+            if window_size is not None and window_size > 0:
+                rolling_alarms = pd.Series(y_pred).rolling(window=window_size, min_periods=1).sum().values
+                is_alarmed = int((rolling_alarms >= BEST_N).any())
+            else:
+                is_alarmed = int(total_alarms >= BEST_N)
+            
+            max_consec = 0; curr_consec = 0
+            for val in y_pred:
+                if val == 1:
+                    curr_consec += 1
+                    if curr_consec > max_consec: max_consec = curr_consec
+                else: curr_consec = 0
+                    
+            lead_time = np.nan
+            persistence = np.nan
+            if disk['is_failed'] == 1 and is_alarmed == 1:
+                if window_size is not None and window_size > 0:
+                    trigger_idx = np.where(rolling_alarms >= BEST_N)[0][0]
+                else:
+                    trigger_idx = np.where(y_pred == 1)[0][BEST_N - 1]
+                trigger_date = pd.to_datetime(disk['dates'][trigger_idx])
+                last_date = pd.to_datetime(disk['dates'][-1])
+                lead_time = (last_date - trigger_date).days
+                
+                alarms_after = y_pred[trigger_idx:].sum()
+                days_after = len(y_pred[trigger_idx:])
+                persistence = alarms_after / days_after if days_after > 0 else 0.0
+                
+            best_disk_records.append({
+                'base_serial': disk['base_serial'],
+                'is_failed': disk['is_failed'],
+                'is_alarmed': is_alarmed,
+                'total_alarms': total_alarms,
+                'max_consec': max_consec,
+                'lead_time': lead_time,
+                'persistence': persistence
+            })
+            
+        df_best_disk = pd.DataFrame(best_disk_records)
+        best_disk_csv_path = os.path.join(cfg.MODEL_SAVE_DIR, "best_disk_lead_time_distribution_calib.csv")
+        df_best_disk.to_csv(best_disk_csv_path, index=False, encoding='utf-8-sig')
+        print(f"[OK] 최적 운영점 기준 개별 디스크 세부 통계 (calib) CSV 저장 완료: {best_disk_csv_path}")
+        
+        tp = int(((df_best_disk['is_failed'] == 1) & (df_best_disk['is_alarmed'] == 1)).sum())
+        fn = int(((df_best_disk['is_failed'] == 1) & (df_best_disk['is_alarmed'] == 0)).sum())
+        fp = int(((df_best_disk['is_failed'] == 0) & (df_best_disk['is_alarmed'] == 1)).sum())
+        tn = int(((df_best_disk['is_failed'] == 0) & (df_best_disk['is_alarmed'] == 0)).sum())
+        
+        print("=" * 65)
+        print(f"  [최적 운영점 최종 스냅샷] T = {BEST_T:.2f}, n = {BEST_N}")
+        print("=" * 65)
+        print(f"  Disk Recall (탐지율)          : {stats['recall']*100:.2f}%")
+        print(f"  Disk FAR (오탐율)             : {stats['far']*100:.2f}%")
+        print(f"  Precision (경고 신뢰도)        : {stats['precision']:.4f}")
+        print(f"  Brier Score (Calibration)     : {stats['calibration']:.5f}")
+        print(f"  Average Lead Time (리드타임)   : {stats['lead_time']:.2f}일")
+        print(f"  Alarm Persistence (지속도)    : {stats['persistence']*100:.2f}%")
+        print(f"  Failure Window Hit Rate       : {stats['fw_hit_rate']*100:.2f}%")
+        print(f"  Alarm Density Ratio (증가비)   : {stats['density_ratio']:.2f}배")
+        print(f"  Average Consecutive Length    : {stats['consec_len']:.2f}일")
+        print(f"  Average Alert Burden          : {stats['alert_burden']:.2f}일")
+        print("=" * 65)
+        
+        plot_detailed_disk_analysis(stats, df_best_disk, tp, fn, fp, tn)
+        
+    print(f"[OK] 디스크 단위 튜닝 파이프라인 완료! (총 소요 시간: {time.perf_counter() - pipeline_t0:.1f}초)")
+    return {
+        "df_grid": df_grid,
+        "detailed_best_points": detailed_best_points,
+    }
+
+
+def run_threshold_tuning_from_saved_model(
+    cfg,
+    *,
+    show_plots: bool = True,
+    save: bool = True,
+) -> dict:
+    """Tuning threshold at disk-level with rolling window constraint on val_calib."""
+    import json
+    from datetime import datetime
+    from config.path_utils import validate_path_contract
+    from pathlib import Path
+    from config.path_utils import val_calib_missing_hint
+
+    pipeline_t0 = time.perf_counter()
+    _log_step("시작", "디스크 단위 롤링 임계값 튜닝 (val_calib)")
+
+    calib_path = Path(cfg.VAL_CALIB_PATH)
+    if not calib_path.is_file():
+        raise FileNotFoundError(val_calib_missing_hint(calib_path))
+
+    _log_step("1/5", "경로·산출물 확인")
+    validate_path_contract(list(getattr(cfg, "REQUIRED_DATA_PATHS", [])))
+
+    _log_step("2/5", "앙상블 모델 로드")
+    artifacts = load_saved_ensemble(cfg, require_threshold=False)
+    feature_cols = artifacts["feature_cols"]
+    ensemble = artifacts["ensemble"]
+
+    _log_step("3/5", f"val_calib parquet 읽기 - {calib_path.name}")
+    t_read = time.perf_counter()
+    df_calib = pd.read_parquet(cfg.VAL_CALIB_PATH)
+    _log(f"로드 완료: {len(df_calib):,}행 ({time.perf_counter() - t_read:.1f}s)", indent=1)
+    _validate_columns(df_calib, feature_cols + [cfg.TARGET_COL], dataset_name="val_calib")
+    calib_summary = _summarize_dataset(
+        df_calib, cfg, label="Calibration Data", path=cfg.VAL_CALIB_PATH
+    )
+
+    _log_step(
+        "4/5",
+        f"앙상블 추론 - {len(df_calib):,}행 ✖ {len(ensemble.models)}모델",
+    )
+    import os
+    cache_path = os.path.join(cfg.MODEL_SAVE_DIR, "val_calib_probs.npy")
+    if os.path.exists(cache_path):
+        _log("캐시된 예측 확률 파일 로드 중...", indent=1)
+        y_calib_prob = np.load(cache_path)
+    else:
+        t_inf = time.perf_counter()
+        y_calib_prob = ensemble.predict_proba(df_calib, feature_cols, verbose=True)
+        np.save(cache_path, y_calib_prob)
+        _log(f"추론 완료 및 캐싱 ({time.perf_counter() - t_inf:.1f}s)", indent=1)
+
+    window_size = getattr(cfg, "ALARM_WINDOW", None)
+    _log(f"알람 탐지 슬라이딩 윈도우 크기 (ALARM_WINDOW): {window_size}일", indent=1)
+
+    # 4. 디스크 단위 데이터 집계
+    disks_data, n_failed_disks, n_normal_disks = prepare_disk_level_data(
+        df_calib, y_calib_prob, target_col=cfg.TARGET_COL, serial_col=cfg.SERIAL_COL, date_col=cfg.DATE_COL
+    )
+
+    _log_step("5/5", f"디스크 단위 그리드 서치 수행")
+    thresholds = np.linspace(0.001, 0.999, 1000)
+    min_alarms_list = [1, 2, 3, 4, 5]
+    df_grid = run_disk_level_grid_search(
+        disks_data, thresholds, min_alarms_list, n_failed_disks, n_normal_disks,
+        log_dir=cfg.MODEL_SAVE_DIR, window_size=window_size
+    )
+
+    # Save grid search results
+    grid_csv_path = os.path.join(cfg.MODEL_SAVE_DIR, "disk_level_grid_search_results.csv")
+    df_grid.to_csv(grid_csv_path, index=False, encoding='utf-8-sig')
+
+    save_cap = getattr(cfg, "SAVE_OPERATING_FPR_CAP", 0.005)
+    valid_rows = df_grid[df_grid['far'] <= save_cap]
+    if len(valid_rows) > 0:
+        best_row = valid_rows.sort_values('recall', ascending=False).iloc[0]
+    else:
+        best_row = df_grid.sort_values('far').iloc[0]
+
+    BEST_T = float(best_row['threshold'])
+    BEST_N = int(best_row['min_alarms'])
+
+    _log(f"선택된 최적 운영점 (FAR Cap <= {save_cap}): T={BEST_T:.4f}, n={BEST_N}", indent=1)
+
+    # Detailed evaluation at the chosen operating point
+    stats = evaluate_detailed_disk_point(
+        disks_data, BEST_T, BEST_N, n_failed_disks, n_normal_disks,
+        far_cap=save_cap, window_size=window_size
+    )
+
+    best_disk_records = []
+    for disk in disks_data:
+        probs = disk['probs']
+        y_pred = (probs >= BEST_T).astype(int)
+        total_alarms = y_pred.sum()
+        
+        if window_size is not None and window_size > 0:
+            rolling_alarms = pd.Series(y_pred).rolling(window=window_size, min_periods=1).sum().values
+            is_alarmed = int((rolling_alarms >= BEST_N).any())
+        else:
+            is_alarmed = int(total_alarms >= BEST_N)
+        
+        max_consec = 0; curr_consec = 0
+        for val in y_pred:
+            if val == 1:
+                curr_consec += 1
+                if curr_consec > max_consec: max_consec = curr_consec
+            else: curr_consec = 0
+                
+        lead_time = np.nan
+        persistence = np.nan
+        if disk['is_failed'] == 1 and is_alarmed == 1:
+            if window_size is not None and window_size > 0:
+                trigger_idx = np.where(rolling_alarms >= BEST_N)[0][0]
+            else:
+                trigger_idx = np.where(y_pred == 1)[0][BEST_N - 1]
+            trigger_date = pd.to_datetime(disk['dates'][trigger_idx])
+            last_date = pd.to_datetime(disk['dates'][-1])
+            lead_time = (last_date - trigger_date).days
+            
+            alarms_after = y_pred[trigger_idx:].sum()
+            days_after = len(y_pred[trigger_idx:])
+            persistence = alarms_after / days_after if days_after > 0 else 0.0
+            
+        best_disk_records.append({
+            'base_serial': disk['base_serial'],
+            'is_failed': disk['is_failed'],
+            'is_alarmed': is_alarmed,
+            'total_alarms': total_alarms,
+            'max_consec': max_consec,
+            'lead_time': lead_time,
+            'persistence': persistence
+        })
+        
+    df_best_disk = pd.DataFrame(best_disk_records)
+    best_disk_csv_path = os.path.join(cfg.MODEL_SAVE_DIR, "best_disk_lead_time_distribution_calib.csv")
+    df_best_disk.to_csv(best_disk_csv_path, index=False, encoding='utf-8-sig')
+
+    tp = int(((df_best_disk['is_failed'] == 1) & (df_best_disk['is_alarmed'] == 1)).sum())
+    fn = int(((df_best_disk['is_failed'] == 1) & (df_best_disk['is_alarmed'] == 0)).sum())
+    fp = int(((df_best_disk['is_failed'] == 0) & (df_best_disk['is_alarmed'] == 1)).sum())
+    tn = int(((df_best_disk['is_failed'] == 0) & (df_best_disk['is_alarmed'] == 0)).sum())
+
+    if show_plots:
+        plot_disk_far_recall_curves(df_grid, min_alarms_list, best_row)
+        plot_detailed_disk_analysis(stats, df_best_disk, tp, fn, fp, tn)
+
+    threshold_metadata = {
+        "threshold": BEST_T,
+        "min_alarms": BEST_N,
+        "window_size": window_size,
+        "save_operating_fpr_cap": save_cap,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "model_dir": str(artifacts["save_dir"]),
+        "val_calib_path": cfg.VAL_CALIB_PATH,
+        "n_features": len(feature_cols),
+    }
+
+    csv_paths = {
+        "grid_search": grid_csv_path,
+        "best_disk": best_disk_csv_path
+    }
+
+    if save:
+        threshold_metadata["csv_paths"] = csv_paths
+        with open(artifacts["threshold_path"], "w", encoding="utf-8") as f:
+            json.dump(threshold_metadata, f, ensure_ascii=False, indent=2)
+        print(f"Saved threshold metadata: {artifacts['threshold_path']}")
+
+    _log_step("완료", f"총 소요 {time.perf_counter() - pipeline_t0:.1f}s")
+
+    return {
+        "threshold": BEST_T,
+        "min_alarms": BEST_N,
+        "window_size": window_size,
+        "threshold_metadata": threshold_metadata,
+        "csv_paths": csv_paths,
+        "artifacts": artifacts,
+        "calib_summary": calib_summary,
+    }
+
+
+
+
+
+def get_detailed_disk_records(disks_data: list[dict], T: float, n: int, window_size: int | None = None) -> pd.DataFrame:
+    """최적 운영점 기준 개별 디스크의 예측 및 리드타임 세부 통계를 데이터프레임으로 반환"""
+    import pandas as pd
+    import numpy as np
+    
+    best_disk_records = []
+    for disk in disks_data:
+        probs = disk['probs']
+        y_pred = (probs >= T).astype(int)
+        total_alarms = y_pred.sum()
+        
+        if window_size is not None and window_size > 0:
+            rolling_alarms = pd.Series(y_pred).rolling(window=window_size, min_periods=1).sum().values
+            is_alarmed = int((rolling_alarms >= n).any())
+        else:
+            is_alarmed = int(total_alarms >= n)
+        
+        max_consec = 0
+        curr_consec = 0
+        for val in y_pred:
+            if val == 1:
+                curr_consec += 1
+                if curr_consec > max_consec:
+                    max_consec = curr_consec
+            else:
+                curr_consec = 0
+                
+        lead_time = np.nan
+        persistence = np.nan
+        
+        if disk['is_failed'] == 1 and is_alarmed == 1:
+            if window_size is not None and window_size > 0:
+                rolling_alarms = pd.Series(y_pred).rolling(window=window_size, min_periods=1).sum().values
+                trigger_idx = np.where(rolling_alarms >= n)[0][0]
+            else:
+                trigger_idx = np.where(y_pred == 1)[0][n - 1]
+                
+            trigger_date = pd.to_datetime(disk['dates'][trigger_idx])
+            last_date = pd.to_datetime(disk['dates'][-1])
+            lead_time = (last_date - trigger_date).days
+            
+            alarms_after = y_pred[trigger_idx:].sum()
+            days_after = len(y_pred[trigger_idx:])
+            persistence = alarms_after / days_after if days_after > 0 else 0.0
+            
+        best_disk_records.append({
+            'base_serial': disk['base_serial'],
+            'is_failed': disk['is_failed'],
+            'is_alarmed': is_alarmed,
+            'total_alarms': total_alarms,
+            'max_consec': max_consec,
+            'lead_time': lead_time,
+            'persistence': persistence
+        })
+        
+    return pd.DataFrame(best_disk_records)

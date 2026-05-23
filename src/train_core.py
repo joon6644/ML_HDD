@@ -150,7 +150,7 @@ class UnderbaggingEnsemble:
             if missing_sub:
                 raise ValueError(f"❌ [Error] 훈련 서브셋 {i} 에 다음 특성이 누락되어 있습니다: {missing_sub}")
 
-        X_val = df_val_tune[feats]
+        X_val = df_val_tune[feats].astype(np.float32)
         y_val = df_val_tune[target_col]
 
         subset_results: list[SubsetResult] = []
@@ -209,7 +209,7 @@ class UnderbaggingEnsemble:
         """학습 완료 후 새 데이터에 대한 soft-voting 확률 반환."""
         if self._result is None:
             raise RuntimeError("fit() 을 먼저 호출하세요.")
-        X = df[feature_cols]
+        X = df[feature_cols].astype(np.float32)
         probs = np.mean([m.predict_proba(X)[:, 1] for m in self._result.models], axis=0)
         return probs
 
@@ -290,7 +290,7 @@ def evaluate_saved_models(
     target_col: str = "failure"
 ) -> EnsembleResult:
     """로드된 모델들을 이용해 데이터셋을 평가하고 EnsembleResult 객체를 반환합니다."""
-    X = df[feature_cols]
+    X = df[feature_cols].astype(np.float32)
     y = df[target_col]
     
     subset_results = []
