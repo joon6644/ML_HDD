@@ -1,0 +1,51 @@
+# §9.2 Waterfall Plot — 고장 확률이 가장 높은 시점 (각 개체별)
+for serial in target_serials:
+    df_entity = df_test[df_test[cfg.SERIAL_COL] == serial].sort_values(cfg.DATE_COL)
+    X_entity = df_entity[FEATURE_COLS].reset_index(drop=True)
+
+    # 앙상블 전체의 SHAP 평균 계산
+    sv_entity_list = []
+    for model in models:
+        exp = shap.TreeExplainer(model)
+        sv_e = exp.shap_values(X_entity)
+        if isinstance(sv_e, list):
+            sv_e = sv_e[1]
+        sv_entity_list.append(sv_e)
+    mean_sv_entity = np.mean(sv_entity_list, axis=0)
+
+    # 고장 확률이 가장 높은 시점 선택
+    peak_idx = df_entity["_prob"].values.argmax()
+    peak_date = df_entity[cfg.DATE_COL].iloc[peak_idx].date()
+    peak_prob = df_entity["_prob"].iloc[peak_idx]
+    
+    print(f"\n" + "="*70)
+    print(f"[§9.2] Waterfall Plot — 개체: {serial}")
+    print(f"       최고 위험 시점: {peak_date} (예측 확률={peak_prob:.4f})")
+    print("="*70)
+
+    # 첫 번째 모델 기준 expected_value 사용
+    base_vals = np.mean([shap.TreeExplainer(m).expected_value for m in models])
+    if isinstance(base_vals, np.ndarray):
+        base_vals = base_vals[1]
+
+    # data=None으로 설정하여 좌측의 연한 회색 원본 피처값을 숨김 (보다 세련된 뷰)
+    explanation = shap.Explanation(
+        values=mean_sv_entity[peak_idx],
+        base_values=float(base_vals),
+        feature_names=FEATURE_COLS,
+    )
+
+    shap.plots.waterfall(explanation, max_display=15, show=False)
+    
+    # SHAP 라이브러리 내부에서 사용하는 유니코드 마이너스 기호(\u2212) 폰트 깨짐 해결
+    fig = plt.gcf()
+    for ax in fig.axes:
+        for t in ax.texts:
+            t.set_text(t.get_text().replace('\u2212', '-'))
+        labels = [l.get_text().replace('\u2212', '-') for l in ax.get_xticklabels()]
+        ax.set_xticklabels(labels)
+        labels = [l.get_text().replace('\u2212', '-') for l in ax.get_yticklabels()]
+        ax.set_yticklabels(labels)
+        
+    plt.tight_layout()
+    plt.show()

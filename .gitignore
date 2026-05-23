@@ -62,3 +62,7 @@ Thumbs.db
 scratch/
 artifacts/
 2024-09-09
+
+# Exception for Model Interpretation Cache
+!shap_cache_*.npy
+

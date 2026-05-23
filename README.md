@@ -132,7 +132,7 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 �
 
 ---
 
-### 1차 필터링 후 RFE 전용 데이터셋
+### 필터링 후 RFE 전용 데이터셋
 
 group 내부 고상관 특성을 필터링한 결과물
 
@@ -140,7 +140,40 @@ group 내부 고상관 특성을 필터링한 결과물
     - [https://drive.google.com/file/d/1LjgwwRVbfmJ8gCxUieBly0QurWUCTT40/view?usp=sharing](https://drive.google.com/file/d/1ryADNuOrGtR4bzV8Ha7mdm5xsyr7oegp/view?usp=sharing)
 - fs_test.parquet
     - https://drive.google.com/file/d/13qsAKr9m1S9mH1rYwDchVnvtOItCCGAH/view?usp=sharing
+
+---
+
+### 변수 생성한 데이터셋
+
+- train subset (train.parquet에서 42번 시드로 추출한 10개의 subset)
+    - https://drive.google.com/drive/folders/1-7yp0UPK3kgXBPJrkpJ_aaYozg03gvZO?usp=sharing
+- val_tune.parquet (Reranking 용 원본)
+    - https://drive.google.com/file/d/1jDtyB1j98km8xHKzECsTg28ejLFmhlZf/view?usp=sharing
+- val_sampled.parquet (val_tune.parquet에서 샘플링된 Optuna 전용 검증셋)
+    - https://drive.google.com/file/d/1r2-UAVFcHtpCSbb7K3BKGJ_kyIlqV4t-/view?usp=sharing
+- val_calib.qarquet
+    - https://drive.google.com/file/d/1KvrNZQgaA5Fl2Tah6BYOgqFL7Eqenflv/view?usp=sharing
+- test.parqeut
+    - https://drive.google.com/file/d/1Ho6U8SY1R9bIHfx6Tf4jzuJVN3cGIlH9/view?usp=sharing
+
+---
+
+### 최종 모델
+
+- 각 서브셋의 가중치 pkl파일
+    - https://drive.google.com/drive/folders/1-7yp0UPK3kgXBPJrkpJ_aaYozg03gvZO?usp=sharing
+- 임계값
+    
+    
+    | FPR | Recall | threshold |
+    | --- | --- | --- |
+    | 0.1% | 26.3% | 0.8790 |
+    | 0.5% | 44.7% | 0.5720 |
+    | 1.0% | 51.2% | 0.3410 |
+    | 5.0% | 61.2% | 0.0960 |
 </aside>
+
+![image.png](attachment:d6dbe7e2-c0a2-4b08-8010-d7a0365c49ff:image.png)
 
 ---
 
@@ -156,7 +189,7 @@ group 내부 고상관 특성을 필터링한 결과물
 
 ```python
 # 상수 열 (분산 0) 삭제 
-# 정규화 열 삭제
+# 정규화 열 삭제 (_raw 컬럼만 사용)
 # 결측치 90% 이상 열 삭제
 # 완전 중복 행 삭제
 # 데이터 타입을 알맞게 수정
@@ -431,7 +464,7 @@ group 내부 고상관 특성을 필터링한 결과물
         3. val_calib_raw (10%) : 임계값 탐색용
         
         - 고장 표본: 약 570개
-        - 역할: 튜닝에 오염되지 않은 독립된 셋. 오직 `목표 오탐률 n% 제약과 Recall 최대화의 최적 조합`을 달성하는 최적의 임계값을 정밀하게 도출하여, 실무 환경 도입 시 오탐 폭발을 원천 차단.
+        - 역할: 튜닝에 오염되지 않은 독립된 셋. 오직 `목표 오탐률 n% 제약과 MCC 최대화의 최적 조합`을 달성하는 최적의 임계값을 정밀하게 도출하여, 실무 환경 도입 시 오탐 폭발을 원천 차단.
         
         4. test_raw (20%) : 최종 성능 평가용
         
@@ -697,7 +730,7 @@ group 내부 고상관 특성을 필터링한 결과물
 
 ---
 
-## **6. 하이퍼파라미터 최적화**
+## **6. 하이퍼파라미터 최적**
 
 최종 선택된 변수를 반영한 데이터셋을 제작
 
@@ -742,10 +775,10 @@ full validation: Optuna 루프에서는 미사용, 최종 선택 (rerank), 최�
     - 모든 고장 데이터 + 100배수로 추출된 정상 데이터(near-failure에 샘플링 가중치 부여)
 </aside>
 
-### [Optuna Stage 1]
+### [Optuna]
 
-- 대략적인 범위를 넓게 탐색함.
-- 튜닝하기 까다로운 n_estimators를 400으로 고정하고 진행함.
+- 앞서 실험을 통해 bagging_fraction = 1, lambda_l1 = 0, lambda_l2 = 0, scale_pos_weight = 1로 수렴하는 것을 확인함
+- 따라서 이를 고정하고 옵튜나 진행함.
 
 ```markdown
 1. 10개의 subset을 순차적으로 학습함
@@ -769,60 +802,38 @@ full validation: Optuna 루프에서는 미사용, 최종 선택 (rerank), 최�
 
 ---
 
-### [Optuna Stage 2]
-
-- [Optuna Stage 1]의 결과를 바탕으로 좋은 영역의 주변을 정밀하게 탐색
-- n_estimators 해방
-- warm-start enqueue → 좋은 지점부터 시작
-- pruning 비활성화 → 이미 좋은 후보군만 탐색하기 때문에 가지치기가 방해가 될 수 있음
-
-```markdown
-1. [Optuna Stage 1] best parameter를 첫 trial로 주입
-
-2. 좁혀진 탐색 공간에서 추가 탐색 수행
-
-3. 모든 trial 완주 후 sampled validation 기준 점수를 정렬
-```
-
----
-
 ### [Reranking]
 
-- sampled validation을 사용했을 때의 리스크를 최소화하기 위한 재평가 단계
-- full validation 기준 최종 선택
+- sampled validation을 사용했을 때의 과적합 리스크를 최소화하기 위한 재평가 단계
+- full validation 기준 최종 선택 (전체 검증 데이터 사용)
 
 ```markdown
-1. [Optuna Stage 2]의 결과 중 best parameter이 될 수 있는 후보 선택 (마진? 분포 확인? 미정)
+1. [Optuna Stage 2]의 결과 중 best parameter이 될 수 있는 후보 선택
+	- 분포를 보고 20개의 trial을 선정함
 
-2. 저장된 ensemble 모델 재사용 (없으면 학습)
+2. 저장된 ensemble 모델 재사용
 
 3. full validation을 예측하여 PR-AUC 계산
 
 4. 이를 기준으로 최종 하이퍼파라미터 선택
 ```
 
----
-
-### [Final Training]
-
-- 최종 선택된 하이퍼파라미터로 전체 앙상블 재학습 수행
-- full validation 기준 최종 성능 확인
-- 모델 및 파라미터 저장
 - 탐색 공간
     
     
     | **Parameter** | **Type** | **Range** | **Log Scale** | **Rationale (설계 논리)** |
     | --- | --- | --- | --- | --- |
-    | **`learning_rate`** | Float | `0.01 ~ 0.1` | **Yes** | 트리 개수(`n_estimators=400`)가 고정된 상태에서 수렴 속도를 맞추기 위해 넓은 로그 스케일로 탐색합니다. |
+    | **`learning_rate`**  | Float | `0.01 ~ 0.1` | **Yes** | 트리 개수(`n_estimators=400`)가 고정된 상태에서 수렴 속도를 맞추기 위해 넓은 로그 스케일로 탐색합니다. |
     | **`max_depth`** | Int | `4 ~ 10` | No | 과적합 방지를 위한 1차 방어선입니다. SMART 데이터의 노이즈 특성상 10을 초과하는 깊이는 유의미한 패턴보다 노이즈를 외울 확률이 높습니다. |
     | **`num_leaves`** | Int | `16 ~ 128` | No | 과적합 방지를 위한 2차 방어선입니다. 무의미한 탐색(예: depth=4인데 leaves=100)을 막기 위해, 실제 코드에서는 `min(2^max_depth, 128)`로 **동적 상한(Conditional Bound)**을 걸어 공간 낭비를 제거했습니다. |
     | **`min_child_samples`** | Int | `20 ~ 100` | No | 불균형 데이터에서 리프 노드가 극소수의 Positive 샘플에 과적합되는 것을 막는 최소한의 허들입니다. |
-    | **`feature_fraction`** | Float | `0.5 ~ 1.0` | No | **(핵심)** Correlated SMART Feature 환경에서 트리가 특정 강한 노이즈 피처에 종속되는 것을 막고, 각 트리의 Subspace Sampling을 강화하여 **앙상블(Tree-level) 다양성을 증가시킴**. 단, 부스팅 과정 파괴를 막기 위해 마지노선(0.5)을 방어합니다. |
-    | **`bagging_fraction`** | Float | `0.6 ~ 1.0` | No | 이미 외부에서 10:1 Underbagging 앙상블이 적용되어 있으므로, 내부의 Row-sampling은 중간 수준(0.6) 이상으로 유지하여 학습 데이터 손실을 막습니다. |
-    | **`lambda_l1`** | Float | `1e-4 ~ 1.0` | **Yes** | L1 규제. 불필요한 split 사용을 억제하여 noisy feature 의존을 완화 |
-    | **`lambda_l2`** | Float | `1e-8 ~ 10.0` | **Yes** | L2 규제. 잎사귀(Leaf)의 출력값을 부드럽게 눌러주어 leaf output의 과도한 진폭을 완화하는 방향으로 작용 |
+    | **`feature_fraction`** | Float | `0.6 ~ 1.0` | No | **(핵심)** Correlated SMART Feature 환경에서 트리가 특정 강한 노이즈 피처에 종속되는 것을 막고, 각 트리의 Subspace Sampling을 강화하여 **앙상블(Tree-level) 다양성을 증가시킴**. 단, 부스팅 과정 파괴를 막기 위해 마지노선(0.5)을 방어합니다. |
+    | **`bagging_fraction`** | Float | 1 | No | 이미 외부에서 10:1 Underbagging 앙상블이 적용되어 있으므로, 내부의 Row-sampling은 중간 수준(0.6) 이상으로 유지하여 학습 데이터 손실을 막습니다. |
+    | **`lambda_l1`** | Float | `0` | **Yes** | L1 규제. 불필요한 split 사용을 억제하여 noisy feature 의존을 완화 |
+    | **`lambda_l2`** | Float | `0` | **Yes** | L2 규제. 잎사귀(Leaf)의 출력값을 부드럽게 눌러주어 leaf output의 과도한 진폭을 완화하는 방향으로 작용 |
     | **`bagging_freq`** | Int | **`1` (고정)** | - | Underbagging 체제이므로 항상 bagging이 켜져 있는 상태를 유지합니다. |
-    | **`n_estimators`** | Int | **`400 ~ 800` (1차에서는 400으로 고정)** | - | Stage 1 에서는 빠른 파라미터 영역 필터링(Coarse Screening)과 파라미터 간 n_estimators 변동에 따른 탐색 노이즈를 줄이기 위해 고정 |
+    | **`n_estimators`** | Int | **`400 ~ 800`** | - | Stage 1 에서는 빠른 파라미터 영역 필터링(Coarse Screening)과 파라미터 간 n_estimators 변동에 따른 탐색 노이즈를 줄이기 위해 고정 |
+    | scale_pos_weight |  | 1 |  |  |
 
 ---
 
@@ -905,17 +916,17 @@ time-to-failure 기반 importance sampling을 적용하였다.
 
 ### 성능 비교
 
-검증셋의 불균형이 다르기 때문에 직접적인 PR-AUC 비교는 불가능함.
+| 노트북 학습 & 검증 시간 | 데스크탑 학습 & 검증 시간 |
+| --- | --- |
+| 2~30분 예상 | 3m 28.6s |
+| 8m 8.8s | 1m 11.4s |
 
-| 튜닝 전 | 노트북 학습 & 검증 시간 | 데스크탑 학습 & 검증 시간 | PR-AUC |
-| --- | --- | --- | --- |
-| full validation (1:1426.4 불균형) | 2~30분 예상 | 3m 28.6s | 0.11249 |
-| sampled validation (100:1 불균형) | 8m 8.8s | 1m 11.4s | 0.40907  |
-
-| 튜닝 후 | PR-AUC | std |
+| PR-AUC | sampled validation (100:1 불균형) | full validation (1:1426.4 불균형) |
 | --- | --- | --- |
-| full validation (1:1426.4 불균형) |  |  |
-| sampled validation (100:1 불균형) |  |  |
+| 튜닝 전 | 0.40907  | 0.11249 |
+| Optuna | 0.4207 | 0.12682 |
+| Reranking (최종 성능) | 0.42 | 0.12721 |
+- 0.11249 → 0.12721 (약 13%의 성능 향상)
 
 ---
 
@@ -925,65 +936,436 @@ time-to-failure 기반 importance sampling을 적용하였다.
 
 <aside>
 
-1. val_calib.parquet로 임계점 그리드서치
-2. FPR과 Recall 의 관계를 그래프로 그림 (x: FPR, y: Recall(TPR))
-3. 적절한 지점을 도출함
+윈도우 기간 내에서 고장 알림이 n번 일어나야 진짜 고장으로 탐지하는 기능 추가
 
-FPR n%에서 Recall nn%라는 문장을 뽑아야 함. (우리 연구의 간판)
+→ 따라서 윈도우 기간, 최소 고장 알림 횟수 n을 튜닝해야 하고, 임계값을 정해야 함.
+
+1. val_calib.parquet로 임계점 그리드서치 (1000등분)
+2. FPR과 Recall 의 관계를 그래프로 그림 (x: FPR, y: Recall(TPR))
+3. n을 바꿔가며 여러 개의 곡선을 그림
+4. 가장 성능이 좋고 적절한 지점을 도출함
+
+FAR n%에서 Recall nn%라는 문장을 뽑아야 함. (지금은 대충만 구하고 이후 8. 모델 평가 단계에서 정확하게 구할 것.)
 
 → 허용한 오탐율 내에서 탐지 성능을 최대화한 운영점
 
 </aside>
 
+## ~~row-level threshold~~ (실제 환경과 달라 의미 없음)
+
+| FPR | Recall | threshold |
+| --- | --- | --- |
+| 0.1% | 26.3% | 0.8790 |
+| 0.5% | 44.7% | 0.5720 |
+| 1.0% | 51.2% | 0.3410 |
+| 5.0% | 61.2% | 0.0960 |
+
 <aside>
 
-| FPR | Recall |
-| --- | --- |
-| 0.1% | xx% |
-| 0.5% | xx% |
-| 1.0% | xx% |
-| 5.0% | xx% |
+임계값 0.5720을 기준(FPR=0.05)으로 두었을 때 지표
+
+![image.png](attachment:727dbc77-8138-41fc-9922-efa87311afee:image.png)
+
+```markdown
+=================================================================
+  FINAL MODEL PERFORMANCE ON val_calib (Threshold = 0.5720)
+=================================================================
+  Accuracy                      : 0.99461
+  Precision (정밀도)             : 0.05970
+  Recall (재현율, TPR)           : 0.44692  (44.69%)
+  Specificity (특이도, TNR)       : 0.99500  (99.50%)
+  F1-Score                      : 0.10533
+  Matthews Correlation (MCC)    : 0.16189
+  False Positive Rate (FPR, 오탐율): 0.00500  (0.50%)
+  False Negative Rate (FNR, 미탐율): 0.55308  (55.31%)
+  ROC-AUC                       : 0.83908
+  PR-AUC (AUPRC)                : 0.12083
+=================================================================
+
+📢 요약: FPR 0.50% 수준에서 고장 재현율 44.69% 달성
+=================================================================
+
+[Classification Report]
+              precision    recall  f1-score   support
+
+  Normal (0)    0.99961   0.99500   0.99730   7826962
+ Failure (1)    0.05970   0.44692   0.10533      5558
+
+    accuracy                        0.99461   7832520
+   macro avg    0.52965   0.72096   0.55131   7832520
+weighted avg    0.99894   0.99461   0.99667   7832520
+```
+
 </aside>
+
+![image.png](attachment:113dea40-648a-4f6f-9f9e-3ae96ed8d323:image.png)
+
+![image.png](attachment:9bf455f1-5812-4bb1-a002-498d1a70b936:image.png)
+
+## disk-level threshold
+
+- 행 기반 무작위 추론 후 결과 집계 (결과가 실제와 같지 않음. 참고만)
+    
+    모델의 실제 적용 시 기대하는 실제 성능을 측정하고, 이를 기준으로 임계값 설정
+    
+    ![image.png](attachment:0a1b4350-9aea-49dc-a784-297cc874fccd:image.png)
+    
+    <aside>
+    
+    > 고장 개체를 맞추기 위해 얼마나 많은 기회가 필요한가?
+    > 
+    > 
+    > 극단적으로 모든 개체를 다 찍으면 Recall은 1이겠지만 이건 의미가 없음. 
+    > 
+    
+    n에 따라 임계값을 1000등분 그리드서치하였을 때 FAR과 Recall의 관계를 나타낸 그래프. (FPR = FAR)
+    
+    - x축: FAR, 정상 개체를 고장이라고 오인하는 비율 (오탐율, log 스케일 적용)
+        - 불필요한 운영 비용을 나타냄 (낮을수록 오인 없이 정확하게 탐지하는 것)
+    - y축: Recall, 실제 고장 개체를 고장이라고 올바르게 탐지한 비율 (재현율)
+        - 실제 고장을 얼마나 많이 탐지하는지를 나타냄 (높을수록 성능이 좋음)
+    
+    n은 고장 알람이 몇 번 일어나야 실제 고장이라고 판단하는지를 나타냄.
+    
+    - n=1일 때 성능이 가장 좋음. 모델의 판단이 꽤 무게감 있음. (한 번 고장이라고 판단하면 맞을 확률 높음)
+    </aside>
+    
+    | Target FAR (제약) | FAR (실제) | Threshold | Recall | Precision | FPs | TPs | FAR 0.1%당 Recall |
+    | --- | --- | --- | --- | --- | --- | --- | --- |
+    | 0.50% | 0.48% | 0.973 | 27.60% | 91.23% | 15 | 156 | +5.75 %p |
+    | 1.00% | 0.99% | 0.960 | 38.10% | 87.40% | 31 | 215 | +2.04 %p |
+    | 1.50% | 1.41% | 0.952 | 42.70% | 84.57% | 44 | 241 | +1.11 %p |
+    | 2.00% | 1.95% | 0.941 | 47.80% | 81.57% | 61 | 270 | +0.94 %p |
+    | 2.50% | 2.40% | 0.934 | 50.60% | 79.22% | 75 | 286 | +0.63 %p |
+    | 3.00% | 2.98% | 0.922 | 54.70% | 76.87% | 93 | 309 | +0.71 %p |
+    | 3.50% | 3.49% | 0.898 | 59.80% | 75.61% | 109 | 338 | +1.00 %p |
+    | 4.00% | 4.00% | 0.883 | 61.90% | 73.68% | 125 | 350 | +0.41 %p |
+    | 4.50% | 4.41% | 0.871 | 63.20% | 72.12% | 138 | 357 | +0.30 %p |
+    | 5.00% | 4.99% | 0.852 | 65.00% | 70.17% | 156 | 367 | +0.31 %p |
+    
+    n=1일 때, FAR 1% ~ 2% 가 적당히 괜찮은 균형을 보여줌.
+    
+    → 임계값은 0.96 ~ 0.941 (FAR 1% 제약에서 Recall 38.05% 달성)
+    
+    - 만약 오탐을 좀 희생해서라도 고장 개체를 더 잡고 싶으면 임계값을 하향조정하면
+        - 임계값 0.852에서 FAR 5% 제약 맞추면서 Recall 64.95% 달성 가능
+    
+    논문에서는 어떻게 ??
+    
+    → 임계값에 따른 표를 보여주는게 좋을듯.. 
+    
+    ---
+    
+    - calib 검증셋으로 미리 보는 최종 결과
+        
+        <aside>
+        
+        ```markdown
+        T = 0.96, n = 1 (FAR <= 0.01)
+        =================================================================
+          Disk Recall (탐지율)          : 38.05%
+          Disk FAR (오탐율)             : 0.99%
+          Precision (경고 신뢰도)        : 0.8740
+          Brier Score (Calibration)     : 0.14049
+          Average Lead Time (리드타임)   : 89.92일
+          Alarm Persistence (지속도)    : 50.54%
+          Failure Window Hit Rate       : 27.96%
+          Alarm Density Ratio (증가비)   : 38.48배
+          Average Consecutive Length    : 0.32일
+          Average Alert Burden          : 0.53일
+        =================================================================
+        ```
+        
+        ![image.png](attachment:53131152-45eb-4900-99e5-10dbc0d03e89:image.png)
+        
+        ![image.png](attachment:23534d5f-273b-4f83-8755-9b5372b7fdfb:image.png)
+        
+        ![image.png](attachment:43a66922-c462-4413-bb22-d8ccd4ed5024:image.png)
+        
+        ![image.png](attachment:9e412409-bcf4-49a9-8745-739af8161a64:image.png)
+        
+        </aside>
+        
+
+롤링 추론 결과
+
+- 윈도우 기간 최적화는 아니더라도 비교분석까지는 필요할 듯 싶어서 3개로 분리함.
+- window_size=7
+    
+    ```markdown
+    ===================================================================================================================
+     FPR Cap   | min_alarms | threshold  | Disk Recall  |  Disk FAR  | Lead Time  | Precision  |  Persist. 
+    ===================================================================================================================
+         0.1% |         1 |    0.9820 |      16.64% |     0.10% |     32.5일 |    0.9691 |   0.5694
+         0.5% |         1 |    0.9720 |      27.61% |     0.48% |     49.6일 |    0.9123 |   0.4818
+         1.0% |         2 |    0.9251 |      38.41% |     0.96% |    104.6일 |    0.8785 |   0.5995
+         3.0% |         2 |    0.8591 |      55.04% |     2.94% |    142.3일 |    0.7717 |   0.6251
+         5.0% |         1 |    0.8511 |      64.96% |     4.99% |    167.8일 |    0.7017 |   0.5569
+    ===================================================================================================================
+    
+    🎯 적용할 최적 운영점: 임계값 T = 0.9251, 최소 알람 수 n = 2 (window_size=7)
+    [OK] 최적 운영점 기준 개별 디스크 세부 통계 (calib) CSV 저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\models\underbagging_ensemble_4\best_disk_lead_time_distribution_calib.csv
+    =================================================================
+      [최적 운영점 최종 스냅샷] T = 0.9251, n = 2 (Rolling W=7)
+    =================================================================
+      Disk Recall (탐지율)          : 38.41%
+      Disk FAR (오탐율)             : 0.96%
+      Precision (경고 신뢰도)        : 0.8785
+      Brier Score (Calibration)     : 0.14049
+      Average Lead Time (리드타임)   : 104.56일
+      Alarm Persistence (지속도)    : 59.95%
+      Failure Window Hit Rate       : 29.56%
+      Alarm Density Ratio (증가비)   : 20.43배
+      Average Consecutive Length    : 0.80일
+      Average Alert Burden          : 1.28일
+    =================================================================
+    ```
+    
+    - 그래프
+        
+        
+        ![image.png](attachment:04ad4677-33b8-489d-b3e5-8812f955b91b:image.png)
+        
+        ![image.png](attachment:bff33710-9e62-4fa0-9462-df94295b1061:image.png)
+        
+        ![image.png](attachment:c22b29bf-144f-48d4-9d8c-e67a1c8657c1:image.png)
+        
+- window_size=14 ← 가장 좋음
+    
+    ```markdown
+    ===================================================================================================================
+     FPR Cap   | min_alarms | threshold  | Disk Recall  |  Disk FAR  | Lead Time  | Precision  |  Persist. 
+    ===================================================================================================================
+         0.1% |         1 |    0.9820 |      16.64% |     0.10% |     32.5일 |    0.9691 |   0.5694
+         0.5% |         1 |    0.9720 |      27.61% |     0.48% |     49.6일 |    0.9123 |   0.4818
+         1.0% |         2 |    0.9261 |      38.76% |     0.93% |    104.1일 |    0.8831 |   0.5914
+         2.0% |         1 |    0.9401 |      47.79% |     1.95% |    122.4일 |    0.8157 |   0.4857
+         3.0% |         2 |    0.8631 |      55.58% |     2.94% |    140.9일 |    0.7734 |   0.6122
+         5.0% |         1 |    0.8511 |      64.96% |     4.99% |    167.8일 |    0.7017 |   0.5569
+    ===================================================================================================================
+    
+    🎯 적용할 최적 운영점: 임계값 T = 0.9261, 최소 알람 수 n = 2 (window_size=14)
+    [OK] 최적 운영점 기준 개별 디스크 세부 통계 (calib) CSV 저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\models\underbagging_ensemble_4\best_disk_lead_time_distribution_calib.csv
+    =================================================================
+      [최적 운영점 최종 스냅샷] T = 0.9261, n = 2 (Rolling W=14)
+    =================================================================
+      Disk Recall (탐지율)          : 38.76%
+      Disk FAR (오탐율)             : 0.93%
+      Precision (경고 신뢰도)        : 0.8831
+      Brier Score (Calibration)     : 0.14049
+      Average Lead Time (리드타임)   : 104.05일
+      Alarm Persistence (지속도)    : 59.14%
+      Failure Window Hit Rate       : 29.91%
+      Alarm Density Ratio (증가비)   : 21.18배
+      Average Consecutive Length    : 0.79일
+      Average Alert Burden          : 1.25일
+    =================================================================
+    ```
+    
+    - 그래프
+        
+        
+        ![image.png](attachment:f9bdaf3e-49dc-4972-8a2d-4a9d585e9cc1:image.png)
+        
+        ![image.png](attachment:509f1d2a-84b7-41fe-9f3f-a92f1ca9b09c:image.png)
+        
+        ![image.png](attachment:1765cc2a-56db-4241-a37b-644ab21efe05:image.png)
+        
+        ![image.png](attachment:ecd9694e-0343-46d4-a572-b02fb40e2ab6:image.png)
+        
+- window_size=28
+    
+    ```markdown
+    ===================================================================================================================
+     FPR Cap   | min_alarms | threshold  | Disk Recall  |  Disk FAR  | Lead Time  | Precision  |  Persist. 
+    ===================================================================================================================
+         0.1% |         1 |    0.9820 |      16.64% |     0.10% |     32.5일 |    0.9691 |   0.5694
+         0.5% |         1 |    0.9720 |      27.61% |     0.48% |     49.6일 |    0.9123 |   0.4818
+         1.0% |         1 |    0.9590 |      38.05% |     0.99% |     89.9일 |    0.8740 |   0.5054
+         3.0% |         2 |    0.8631 |      55.75% |     2.94% |    144.7일 |    0.7740 |   0.6098
+         5.0% |         1 |    0.8511 |      64.96% |     4.99% |    167.8일 |    0.7017 |   0.5569
+    ===================================================================================================================
+    
+    🎯 적용할 최적 운영점: 임계값 T = 0.9590, 최소 알람 수 n = 1 (window_size=28)
+    [OK] 최적 운영점 기준 개별 디스크 세부 통계 (calib) CSV 저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\models\underbagging_ensemble_4\best_disk_lead_time_distribution_calib.csv
+    =================================================================
+      [최적 운영점 최종 스냅샷] T = 0.9590, n = 1 (Rolling W=28)
+    =================================================================
+      Disk Recall (탐지율)          : 38.05%
+      Disk FAR (오탐율)             : 0.99%
+      Precision (경고 신뢰도)        : 0.8740
+      Brier Score (Calibration)     : 0.14049
+      Average Lead Time (리드타임)   : 89.92일
+      Alarm Persistence (지속도)    : 50.54%
+      Failure Window Hit Rate       : 27.96%
+      Alarm Density Ratio (증가비)   : 38.48배
+      Average Consecutive Length    : 0.32일
+      Average Alert Burden          : 0.53일
+    =================================================================
+    ```
+    
+    - 그래프
+        
+        
+        ![image.png](attachment:30355e0d-fc98-496e-aa56-3335f3afe58c:image.png)
+        
+        ![image.png](attachment:ee3096c7-047e-4297-bcca-f16ad8773a1c:image.png)
+        
+        ![image.png](attachment:d1682b92-82c5-4bc4-8d96-61fdc57e9600:image.png)
+        
+
+---
+
+대체적으로 오탐율 1% ~ 2%가 최고 효율을 가지는 구간인 것을 확인함.
+
+- 1%로 해도 문제는 없어서 깔끔하게 1%로 하자 (Recall: 38.76%, Precision: 0.8831) ← 일단 여기로 진행했는데 논문에서는 여러 임계점을 사용해서 표 형식으로 보여줘도 될 것 같아요 trade-off 관계라서
+    
+    vs
+    
+- Recall을 조금이라도 더 높이려면 2%로 하는 것이 좋다 (Recall: 47.79%, Precision: 0.8157)
+
+---
+
+모델 평가 시 다음과 같은 임계값을 적용하여 표 형태로 전달하는 것이 좋을듯..
+
+2차원 형태로 최적화함
+
+| 허용 오탐율 | 최소 알람 횟수 | 임계값 |
+| --- | --- | --- |
+|      0.1%  | 1회 |     0.9820  |
+|      0.5%  | 1회 |     0.9720  |
+|      1.0%  | 2회 |     0.9261  |
+|      2.0%  | 1회 |     0.9401  |
+|      3.0%  | 2회 |     0.8631  |
+|      5.0%  | 1회 |     0.8511  |
 
 ---
 
 ## 8. 모델 평가
 
-## **1. 행 단위 점수 평가**
+## **~~1. 행 단위 점수 평가~~**
 
-모델이 각 시점(행)에 대해 출력한 확률을 기준으로, threshold를 적용하여 성능을 정량적으로 평가한다.
-
-- **평가 목적**
-    - 모델 자체의 예측 품질 및 분류 능력 평가
-    - 서로 다른 모델/특성 조합 비교
-- **평가 지표**
-    - PR-AUC (ranking 성능)
-    - MCC (class imbalance 반영)
-    - F1-score (threshold 기반 성능)
-- **특징**
-    - 모든 샘플을 독립적으로 평가
-    - 시간 구조는 고려하지 않음
+- 설명
+    - **평가 목적**
+        - 모델 자체의 예측 품질 및 분류 능력 평가
+        - 서로 다른 모델/특성 조합 비교
+    - **평가 지표**
+        - PR-AUC (ranking 성능)
+        - MCC (class imbalance 반영)
+        - F1-score (threshold 기반 성능)
+    - **특징**
+        - 모든 샘플을 독립적으로 평가
+        - 시간 구조는 고려하지 않음
+- 이건 별 의미가 없어서 스킵하겠습니다.
 
 ---
 
 ## **2. 실무형 롤링 평가**
 
-실제 운영 환경을 모사하여 시간 축과 개체 단위를 반영한 평가를 수행한다.
+- 설명
+    
+    실제 운영 환경을 모사하여 시간 축과 개체 단위를 반영한 평가를 수행한다.
+    
+    - **평가 방식**
+        - 1일 단위 rolling inference (sliding window)
+        - 시계열 순서를 유지한 예측 수행
+    - **평가 단위**
+        - 개체(Entity: serial number) 기준 평가
+    - **핵심 지표**
+        - 고장 탐지율 (Hit Rate)
+        - 평균 사전 경보 시간 (Lead Time)
+            - 탐지 못한 개체는 계산에서 제외
+        - 오탐율 (정상 개체에서 잘못 울린 비율)
+        - 미탐율 (고장 개체에서 안울린 비율)
+    - **특징**
+        - 실제 운영 환경과 동일한 구조
+        - “얼마나 빨리, 얼마나 정확하게 잡는가” 평가
+- ~~고장 당일 미포함 test셋~~
+    
+    ```markdown
+    🎯 도출된 최적 운영점 적용: 임계값 T = 0.9261, 최소 알람 수 n = 2 (window_size=14)
+    
+    [OK] 개별 디스크 세부 통계 (test) CSV 저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\models\underbagging_ensemble_4\best_disk_lead_time_distribution_test.csv
+    
+    =================================================================
+      [최적 운영점 최종 스냅샷] T = 0.9261, n = 2 (Rolling W=14)
+    =================================================================
+      Disk Recall (탐지율)          : 38.78%
+      Disk FAR (오탐율)             : 1.31%
+      Precision (경고 신뢰도)        : 0.8420
+      Brier Score (Calibration)     : 0.14392
+      Average Lead Time (리드타임)   : 132.39일
+      Alarm Persistence (지속도)    : 57.89%
+      Failure Window Hit Rate       : 30.88%
+      Alarm Density Ratio (증가비)   : 21.47배
+      Average Consecutive Length    : 0.88일
+      Average Alert Burden          : 1.30일
+    =================================================================
+    
+    [OK] 최종 평가 메타데이터 JSON 저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\models\underbagging_ensemble_4\final_evaluation.json
+    ```
+    
+    ![image.png](attachment:2d66653a-2308-45cb-a85c-419cacf4f3b8:image.png)
+    
+    ![image.png](attachment:7335eeab-d897-4bc3-888b-980e5ce049be:image.png)
+    
+    ![image.png](attachment:94d0d7af-e798-4d7b-a892-5b9a02ed3cb9:image.png)
+    
+    ![image.png](attachment:9641c7fb-f5ba-4a1f-b508-52a1d4fc670c:image.png)
+    
+- 고장 당일 포함 test셋 ← 이거 기준으로 삼고,  리드타임 분석 내용 넣으면 좋을 것 같습니다.
+    
+    ```markdown
+    🎯 도출된 최적 운영점 적용: 임계값 T = 0.9261, 최소 알람 수 n = 2 (window_size=14)
+    
+    [OK] 개별 디스크 세부 통계 (test) CSV 저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\models\underbagging_ensemble_4\best_disk_lead_time_distribution_test.csv
+    
+    =================================================================
+      [최적 운영점 최종 스냅샷] T = 0.9261, n = 2 (Rolling W=14)
+    =================================================================
+      Disk Recall (탐지율)          : 41.53%
+      Disk FAR (오탐율)             : 1.31%
+      Precision (경고 신뢰도)        : 0.8509
+      Brier Score (Calibration)     : 0.13793
+      Average Lead Time (리드타임)   : 124.55일
+      Alarm Persistence (지속도)    : 56.53%
+      Failure Window Hit Rate       : 34.16%
+      Alarm Density Ratio (증가비)   : 21.90배
+      Average Consecutive Length    : 0.90일
+      Average Alert Burden          : 1.33일
+    =================================================================
+    
+    [OK] 최종 평가 메타데이터 JSON 저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\models\underbagging_ensemble_4\final_evaluation.json
+    ```
+    
+    ![image.png](attachment:c0f7d9c1-efbd-4792-97d0-5b2560a309c5:image.png)
+    
+    ![image.png](attachment:daf946b2-f3b8-48ec-b477-f0c643087a7e:image.png)
+    
+    ![image.png](attachment:8b2d492f-fff9-4c94-8ae7-09ca80ba52e9:image.png)
+    
+    ![image.png](attachment:8c572f76-b135-4c0e-9359-eea52a88e885:image.png)
+    
 
-- **평가 방식**
-    - 1일 단위 rolling inference (sliding window)
-    - 시계열 순서를 유지한 예측 수행
-- **평가 단위**
-    - 개체(Entity: serial number) 기준 평가
-- **핵심 지표**
-    - 고장 탐지율 (Hit Rate)
-    - 평균 사전 경보 시간 (Lead Time)
-        - 탐지 못한 개체는 계산에서 제외
-    - 오탐율 (정상 개체에서 잘못 울린 비율)
-    - 미탐율 (고장 개체에서 안울린 비율)
-- **특징**
-    - 실제 운영 환경과 동일한 구조
-    - “얼마나 빨리, 얼마나 정확하게 잡는가” 평가
+---
+
+### 최종 성능 표 (앞단계에서 최적화한 임계값을 사용함)
+
+ (window=14, min_alarms=1~2, Disk_Level Evaluation)
+
+- ROC-AUC: 0.8241
+- PR-AUC: 0.6857
+
+| 최소 알람 횟수 | 임계값 | FPR | Accuracy | Precision | Recall | Specificity | F1 Score | Average Lead Time | Median Lead Time | Alarm Persistence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1회 | 0.9820  | 0.16% | 86.79% | 94.19% | 14.37% | 99.84% | 0.2494 | 41.06일 | 5일 | 40.46% |
+| 1회 | 0.9720  | 0.46% | 88.44% | 91.27% | 26.89% | 99.54% | 0.4154 | 71.09일 | 9일 | 37.67% |
+| 2회 | 0.9261  | 1.31% | 89.96% | 85.09% | 41.53% | 98.69% | 0.5581 | 124.55일 | 21일 | 56.53% |
+| 1회 | 0.9401  | 1.98% | 90.60% | 81.79% | 49.42% | 98.02% | 0.6162 | 153.21일 | 26일 | 42.95% |
+| 2회 | 0.8631  | 2.83% | 90.60% | 77.51% | 54.13% | 97.17% | 0.6374 | 201.85일 | 46일 | 58.43% |
+| 1회 | 0.8511  | 4.73% | 90.79% | 71.51% | 65.93% | 95.27% | 0.6861 | 224.10일 | 50일 | 55.15% |
+
+.
 
 ---
 
@@ -991,28 +1373,78 @@ FPR n%에서 Recall nn%라는 문장을 뽑아야 함. (우리 연구의 간판)
 
 ### **8.1 전역적 해석 (Global Interpretability)**
 
-SHAP Summary Plot을 기반으로 전체 데이터에서 주요 고장 기여 변수를 분석한다.
-
-- 주요 SMART feature 중요도 분석
-- 전반적인 고장 패턴 구조 파악
+- SHAP
+    
+    ![image.png](attachment:0183137e-5a19-45d9-8064-2c84aafd4903:image.png)
+    
+    - 에러와 관련된 급성 지표 원본이 상위권을 차지함.
+- 계층구조
 
 ---
 
 ### **8.2 국소적 해석 (Local Interpretability)**
 
-개별 디스크 단위에서 SHAP Waterfall Plot을 활용하여 특정 예측 결과의 근거를 설명한다.
-
-- 시리얼 넘버별 고장 원인 분석
-- 엔지니어 해석 가능 형태 제공
-
 ---
 
 ### **8.3 시간 기반 해석 (Temporal Interpretation)**
 
-고장은 시간에 따른 점진적 열화 과정이므로, 일정 기간(window)의 feature 변화가 예측에 미치는 영향을 분석한다.
+정탐 사례와 미탐 사례 중 랜덤으로 표본을 추출하여 국소적/시간 기반 분석함.
 
-- 고장 전 일정 기간(예: 30일) feature trajectory 분석
-- SHAP 기반 기여도 변화 추적
+- 정탐 사례 (S301KX66)
+    
+    <aside>
+    
+    [개체 생애 (Lifecycle) 요약: S301KX66]
+    
+    - 데이터 수집 기간 : 2015-11-05 ~ 2016-06-13 (총 222일간 관측)
+    - 시스템 최초 경보 : 2016-06-10 (고장 3.0일 전 감지)
+    - 알람 발령 통계 : 총 5회 발령 | 최장 5일 연속 발령
+    - 최종 평가 결과 : ✅ 탐지 성공 (고장 디스크)
+    </aside>
+    
+    ![image.png](attachment:c6d3d2db-fa84-4f92-bad7-3b95c8aa0633:image.png)
+    
+    여러 특성에서 강한 고장 신호를 만들었고, 이들이 중첩되어 고장을 확신하기 쉬웠음.
+    
+    ![image.png](attachment:b0e38f60-d910-40e7-8ce3-79e5df6e8b90:image.png)
+    
+- 미탐 사례 (Z305DTQS)
+    
+    <aside>
+    
+    [개체 생애 (Lifecycle) 요약: Z305DTQS]
+    
+    - 데이터 수집 기간 : 2016-02-09 ~ 2017-01-17 (총 344일간 관측)
+    - 시스템 경보 이력 : 없음 (미탐)
+    - 최종 평가 결과 : ❌ 탐지 실패 (고장 디스크)
+    </aside>
+    
+    ![image.png](attachment:7e6a8295-e7f9-4aba-9974-1d0880a9503b:image.png)
+    
+    특정 피처의 고장 신호는 존재했지만, 다른 특성이 이를 상쇄하여 임계점을 넘지 못함.
+    
+    모델 입장에서는 이상하긴 한데 고장이라고 확신할 수는 없던 상태였던 것임.
+    
+    ![image.png](attachment:79acaf5d-c26f-481f-a360-f4e1fcf7695e:image.png)
+    
+- 오탐 사례 (S300ZNVD)
+    
+    <aside>
+    
+    - 데이터 수집 기간 : 2015-07-29 ~ 2017-01-17 (총 539일간 관측)
+    - 시스템 최종 확정 : 2015-10-15 (관측 종료일로부터 460일 전에 오탐 발령됨)
+    - 모델 단일 경고 이력: 총 3회 (D-461, D-460, D-459)
+    - 최종 평가 결과 : ❌ 오탐 (False Alarm) (정상 디스크)
+    </aside>
+    
+    ![image.png](attachment:f9c8a4d2-5dd4-4e1b-ba22-837325d93602:image.png)
+    
+    이런 사례는 인간이 봐도 고장으로 판단하는 것이 타당함.
+    
+    레이블링의 한계일수도 있고, 해당 모델이 독특한 것일 수 있음.
+    
+    ![image.png](attachment:13e2a350-6d64-4497-9dad-8c4ddbc9253b:image.png)
+    
 
 ---
 
