@@ -1257,11 +1257,23 @@ def run_disk_level_grid_search(
     n_normal_disks: int,
     log_dir: str | None = None,
     window_size: int | None = None,
+    horizon: int | None = None,
 ) -> pd.DataFrame:
     """그리드 서치를 벡터화하여 고속 실행하며, window_size에 따른 롤링 윈도우 알림 제약을 지원"""
     import os
+    import pandas as pd
     is_failed_arr = np.array([d['is_failed'] for d in disks_data], dtype=bool)
     nth_probs_matrix = np.zeros((len(disks_data), len(min_alarms_list)))
+    
+    failed_disks_days = []
+    failed_disks_probs = []
+    for disk in disks_data:
+        if disk['is_failed'] == 1:
+            dates = pd.Series(pd.to_datetime(disk['dates']))
+            days = (dates.iloc[-1] - dates).dt.days.values
+            failed_disks_days.append(days)
+            failed_disks_probs.append(disk['probs'])
+    
     
     for idx, disk in enumerate(disks_data):
         probs = disk['probs']
@@ -1285,8 +1297,18 @@ def run_disk_level_grid_search(
         for T in thresholds:
             count += 1
             is_alarmed = (nth_p >= T)
-            tps = np.sum(is_alarmed & is_failed_arr)
             fps = np.sum(is_alarmed & ~is_failed_arr)
+            
+            if horizon is not None:
+                tps = 0
+                for d_days, d_probs in zip(failed_disks_days, failed_disks_probs):
+                    idx = np.where(d_probs >= T)[0]
+                    if len(idx) >= n:
+                        if d_days[idx[n-1]] <= horizon:
+                            tps += 1
+            else:
+                tps = np.sum(is_alarmed & is_failed_arr)
+            
             
             recall = tps / n_failed_disks if n_failed_disks > 0 else 0.0
             far = fps / n_normal_disks if n_normal_disks > 0 else 0.0
@@ -1325,6 +1347,7 @@ def evaluate_detailed_disk_point(
     n_normal_disks: int,
     far_cap: float | None = None,
     window_size: int | None = None,
+    horizon: int | None = None,
 ) -> dict:
     """선택된 단일 운영점에서 세부 지표(Brier Score, 리드타임, Persistence 등) 평가"""
     tps = 0
@@ -1366,7 +1389,6 @@ def evaluate_detailed_disk_point(
         
         if is_failed == 1:
             if is_alarmed == 1:
-                tps += 1
                 if window_size is not None and window_size > 0:
                     trigger_idx = np.where(rolling_alarms >= n)[0][0]
                 else:
@@ -1374,12 +1396,20 @@ def evaluate_detailed_disk_point(
                 trigger_date = pd.to_datetime(disk['dates'][trigger_idx])
                 last_date = pd.to_datetime(disk['dates'][-1])
                 
-                lead_times.append((last_date - trigger_date).days)
+                lead_time = (last_date - trigger_date).days
                 
-                alarms_after = y_pred[trigger_idx:].sum()
-                days_after = len(y_pred[trigger_idx:])
-                persistences.append(alarms_after / days_after if days_after > 0 else 0.0)
-                fw_hits.append(1 if y_pred[failures == 1].sum() > 0 else 0)
+                if horizon is not None and lead_time > horizon:
+                    # Horizon 제약 위반 (너무 일찍 알람이 발생한 경우 FN 처리)
+                    fns += 1
+                    fw_hits.append(0)
+                else:
+                    tps += 1
+                    lead_times.append(lead_time)
+                    
+                    alarms_after = y_pred[trigger_idx:].sum()
+                    days_after = len(y_pred[trigger_idx:])
+                    persistences.append(alarms_after / days_after if days_after > 0 else 0.0)
+                    fw_hits.append(1 if y_pred[failures == 1].sum() > 0 else 0)
             else:
                 fns += 1
                 fw_hits.append(0)
@@ -1500,86 +1530,97 @@ def plot_detailed_disk_analysis(
     plt.tight_layout()
     plt.show()
 
-    # 2) 분포 분석 (전체 리드타임 및 오탐 일수 분포) 출력
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
-    
-    # 2-1) Lead Time Distribution (전체 범위)
-    ax = axes[0]
-    df_lt_detected = df_best_disk[df_best_disk["lead_time"].notna()]
-    median_lt = df_lt_detected["lead_time"].median() if len(df_lt_detected) > 0 else np.nan
-    if len(df_lt_detected) > 0:
-        sns.histplot(df_lt_detected["lead_time"], bins=20, kde=True, color="purple", edgecolor="white", ax=ax)
-        # 평균 표시
-        ax.axvline(stats["lead_time"], color="red", linestyle="--", linewidth=1.5,
-                   label=f"Mean: {stats['lead_time']:.1f}일")
-        # 중앙값 표시
-        ax.axvline(median_lt, color="orange", linestyle=":", linewidth=2.0,
-                   label=f"Median: {median_lt:.1f}일")
-        ax.set_xlabel("Lead Time (Days before failure)", fontsize=11)
-        ax.set_ylabel("Failed Disks Count", fontsize=11)
-        ax.set_title("고장 디스크별 리드타임 분포 (전체 Lead Time)", fontsize=12, fontweight="bold", pad=12)
-        ax.legend()
-    else:
-        ax.text(0.5, 0.5, "탐지된 고장 디스크 없음", ha="center", va="center", transform=ax.transAxes)
-    ax.grid(axis="y", linestyle=":", alpha=0.6)
-    
-    # 2-2) False Alarm Days Distribution
-    ax = axes[1]
+    # 2) False Alarm Days Distribution
+    plt.figure(figsize=(8, 5.5))
+    ax2 = plt.gca()
     df_fa_disks = df_best_disk[(df_best_disk["is_failed"] == 0) & (df_best_disk["total_alarms"] > 0)]
     if len(df_fa_disks) > 0:
-        sns.histplot(df_fa_disks["total_alarms"], bins=15, kde=False, color="coral", edgecolor="white", ax=ax)
-        ax.set_xlabel("False Alarm Days (Per Disk)", fontsize=11)
-        ax.set_ylabel("Normal Disks Count", fontsize=11)
-        ax.set_title("정상 디스크별 오탐 일수 분포", fontsize=12, fontweight="bold", pad=12)
+        sns.histplot(df_fa_disks["total_alarms"], binwidth=1, kde=False, color="coral", edgecolor="white", ax=ax2)
+        ax2.set_xlabel("False Alarm Days (Per Disk)", fontsize=11)
+        ax2.set_ylabel("Normal Disks Count", fontsize=11)
+        ax2.set_title("정상 디스크별 오탐 일수 분포", fontsize=12, fontweight="bold", pad=12)
     else:
-        ax.text(0.5, 0.5, "오탐 발생 정상 디스크 없음", ha="center", va="center", transform=ax.transAxes)
-    ax.grid(axis="y", linestyle=":", alpha=0.6)
+        ax2.text(0.5, 0.5, "오탐 발생 정상 디스크 없음", ha="center", va="center", transform=ax2.transAxes)
+    ax2.grid(axis="y", linestyle=":", alpha=0.6)
+    plt.tight_layout()
+    plt.show()
+
+    # 3) Lead Time Distributions (1x3 Subplots: Overall, 100-day, 30-day)
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5.5))
+    df_lt_detected = df_best_disk[df_best_disk["lead_time"].notna()]
+    mean_lt = df_lt_detected["lead_time"].mean() if len(df_lt_detected) > 0 else np.nan
+    median_lt = df_lt_detected["lead_time"].median() if len(df_lt_detected) > 0 else np.nan
     
-    plt.suptitle("최적 운영점 디스크 단위 지표 전체 분포 분석", fontsize=14, fontweight="bold", y=0.98)
-    plt.tight_layout()
-    plt.show()
-
-    # 3) 고장 디스크별 리드타임 분포 (초기 100일 미만 구간 확대 단독 그래프)
-    plt.figure(figsize=(7, 5.5))
     if len(df_lt_detected) > 0:
+        # 3-1) Overall
+        sns.histplot(df_lt_detected["lead_time"], bins=30, kde=True, color="purple", edgecolor="white", ax=axes[0])
+        axes[0].axvline(mean_lt, color="red", linestyle="--", linewidth=1.5, label=f"Mean: {mean_lt:.1f}일")
+        axes[0].axvline(median_lt, color="orange", linestyle=":", linewidth=2.0, label=f"Median: {median_lt:.1f}일")
+        axes[0].set_xlabel("Lead Time (Days before failure)", fontsize=11)
+        axes[0].set_ylabel("Failed Disks Count", fontsize=11)
+        axes[0].set_title("고장 디스크별 리드타임", fontsize=12, fontweight="bold", pad=12)
+        axes[0].legend()
+        axes[0].grid(axis="y", linestyle=":", alpha=0.6)
+        
+        # 3-2) 100-day zoomed
         df_lt_zoomed_100 = df_lt_detected[df_lt_detected["lead_time"] <= 100]
-        sns.histplot(df_lt_zoomed_100["lead_time"], bins=15, kde=True, color="purple", edgecolor="white")
-        # 전체 데이터 기준의 평균과 중앙값 표시선 추가
-        plt.axvline(stats["lead_time"], color="red", linestyle="--", linewidth=1.5,
-                   label=f"Mean (All): {stats['lead_time']:.1f}일")
-        plt.axvline(median_lt, color="orange", linestyle=":", linewidth=2.0,
-                   label=f"Median (All): {median_lt:.1f}일")
-        plt.xlim([-5, 105])
-        plt.xlabel("Lead Time (Days before failure)", fontsize=11)
-        plt.ylabel("Failed Disks Count", fontsize=11)
-        plt.title("고장 디스크별 리드타임 분포 (초기 100일 구간 확대)", fontsize=12, fontweight="bold", pad=12)
-        plt.legend()
+        sns.histplot(df_lt_zoomed_100["lead_time"], binwidth=1, kde=True, color="purple", edgecolor="white", ax=axes[1])
+        axes[1].axvline(mean_lt, color="red", linestyle="--", linewidth=1.5, label=f"Mean (All): {mean_lt:.1f}일")
+        axes[1].axvline(median_lt, color="orange", linestyle=":", linewidth=2.0, label=f"Median (All): {median_lt:.1f}일")
+        axes[1].set_xlim([-5, 105])
+        axes[1].set_xlabel("Lead Time (Days before failure)", fontsize=11)
+        axes[1].set_ylabel("Failed Disks Count", fontsize=11)
+        axes[1].set_title("초기 100일 확대", fontsize=12, fontweight="bold", pad=12)
+        axes[1].legend()
+        axes[1].grid(axis="y", linestyle=":", alpha=0.6)
+        
+        # 3-3) 30-day zoomed
+        df_lt_zoomed_30 = df_lt_detected[df_lt_detected["lead_time"] <= 30]
+        sns.histplot(df_lt_zoomed_30["lead_time"], binwidth=1, kde=True, color="purple", edgecolor="white", ax=axes[2])
+        axes[2].axvline(mean_lt, color="red", linestyle="--", linewidth=1.5, label=f"Mean (All): {mean_lt:.1f}일")
+        axes[2].axvline(median_lt, color="orange", linestyle=":", linewidth=2.0, label=f"Median (All): {median_lt:.1f}일")
+        axes[2].set_xlim([-2, 32])
+        axes[2].set_xlabel("Lead Time (Days before failure)", fontsize=11)
+        axes[2].set_ylabel("Failed Disks Count", fontsize=11)
+        axes[2].set_title("초기 30일 확대", fontsize=12, fontweight="bold", pad=12)
+        axes[2].legend()
+        axes[2].grid(axis="y", linestyle=":", alpha=0.6)
     else:
-        plt.text(0.5, 0.5, "탐지된 고장 디스크 없음", ha="center", va="center")
-    plt.grid(axis="y", linestyle=":", alpha=0.6)
+        for ax in axes:
+            ax.text(0.5, 0.5, "탐지된 고장 디스크 없음", ha="center", va="center")
+            
+    plt.suptitle("고장 디스크별 리드타임 분포 심층 분석", fontsize=14, fontweight="bold", y=1.02)
     plt.tight_layout()
     plt.show()
 
-    # 4) 추가 요건: 고장 디스크별 리드타임 분포 (초기 30일 미만 구간 확대 단독 그래프)
-    plt.figure(figsize=(7, 5.5))
+    # 5) 누적 분포 함수 (CDF) 분리 출력: 전체 및 100일 미만
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
     if len(df_lt_detected) > 0:
-        # 초기 30일 이하 구간에 속하는 데이터만 필터링
-        df_lt_zoomed_30 = df_lt_detected[df_lt_detected["lead_time"] <= 30]
-        # 일당 1개의 막대를 가지도록 binwidth=1 로 세밀화 조정
-        sns.histplot(df_lt_zoomed_30["lead_time"], binwidth=1, kde=True, color="purple", edgecolor="white")
-        # 전체 데이터 기준의 평균과 중앙값 표시선 추가
-        plt.axvline(stats["lead_time"], color="red", linestyle="--", linewidth=1.5,
-                   label=f"Mean (All): {stats['lead_time']:.1f}일")
-        plt.axvline(median_lt, color="orange", linestyle=":", linewidth=2.0,
-                   label=f"Median (All): {median_lt:.1f}일")
-        plt.xlim([-2, 32])
-        plt.xlabel("Lead Time (Days before failure)", fontsize=11)
-        plt.ylabel("Failed Disks Count", fontsize=11)
-        plt.title("고장 디스크별 리드타임 분포 (초기 30일 구간 확대)", fontsize=12, fontweight="bold", pad=12)
-        plt.legend()
+        # 5-1) 전체 리드타임 CDF
+        sns.ecdfplot(data=df_lt_detected, x="lead_time", color="green", linewidth=2.5, ax=axes[0])
+        axes[0].axvline(mean_lt, color="red", linestyle="--", linewidth=1.5, label=f"Mean: {mean_lt:.1f}일")
+        axes[0].axvline(median_lt, color="orange", linestyle=":", linewidth=2.0, label=f"Median: {median_lt:.1f}일")
+        axes[0].set_xlabel("Lead Time (Days before failure)", fontsize=11)
+        axes[0].set_ylabel("Cumulative Probability", fontsize=11)
+        axes[0].set_title("고장 디스크별 리드타임 누적 분포 (전체 CDF)", fontsize=12, fontweight="bold", pad=12)
+        axes[0].grid(axis="y", linestyle=":", alpha=0.6)
+        axes[0].legend()
+        
+        # 5-2) 100일 미만 리드타임 CDF
+        sns.ecdfplot(data=df_lt_detected, x="lead_time", color="green", linewidth=2.5, ax=axes[1])
+        axes[1].axvline(mean_lt, color="red", linestyle="--", linewidth=1.5, label=f"Mean: {mean_lt:.1f}일")
+        axes[1].axvline(median_lt, color="orange", linestyle=":", linewidth=2.0, label=f"Median: {median_lt:.1f}일")
+        axes[1].set_xlim([-5, 105])
+        axes[1].set_xlabel("Lead Time (Days before failure)", fontsize=11)
+        axes[1].set_ylabel("Cumulative Probability", fontsize=11)
+        axes[1].set_title("고장 디스크별 리드타임 누적 분포 (초기 100일 CDF)", fontsize=12, fontweight="bold", pad=12)
+        axes[1].grid(axis="y", linestyle=":", alpha=0.6)
+        axes[1].legend()
     else:
-        plt.text(0.5, 0.5, "탐지된 고장 디스크 없음", ha="center", va="center")
-    plt.grid(axis="y", linestyle=":", alpha=0.6)
+        axes[0].text(0.5, 0.5, "탐지된 고장 디스크 없음", ha="center", va="center", transform=axes[0].transAxes)
+        axes[1].text(0.5, 0.5, "탐지된 고장 디스크 없음", ha="center", va="center", transform=axes[1].transAxes)
+        
+    plt.suptitle("리드타임 누적 분포 함수 (CDF) 분리 분석", fontsize=14, fontweight="bold", y=0.98)
     plt.tight_layout()
     plt.show()
 
