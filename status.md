@@ -42,13 +42,34 @@
 
 ---
 
-## 3. 해야 할 것
-1. **평가 기준의 단일화 (base_serial 통일)**
-   * 논문 및 보고서 작성을 위해 베이스라인 평가 코드(`10b_baseline_training.ipynb`)의 디스크 그룹화 기준을 `serial_number`에서 `base_serial`로 전면 수정하여 일관된 평가 테이블을 도출해야 합니다.
-2. **최종 모델의 오탐 원인 분석**
-   * 최종 모델의 27개 파생 피처 중 어떤 피처가 정상 디스크에서 조기 경보(False Alarm)를 빈번하게 유발하여 임계값이 과도하게 높아졌는지 분석이 필요합니다.
-3. **피처 엔지니어링 및 하이퍼파라미터 튜닝 파이프라인 재점검**
-   * 최종 모델 학습 시 `val_tune` PR-AUC(Sampled) 최적화 과정이 실제 롤링 평가 메트릭과의 괴리를 키웠을 가능성(과적합)을 검토합니다.
+## 3. 분석 결과 및 조치 완료 내용
+
+### 1) 평가 기준의 단일화 (base_serial 통일) - 조치 완료
+- 베이스라인 평가 코드(`10b_baseline_training.ipynb`)를 `base_serial` 기준으로 전면 수정하였습니다.
+  - **`predict_rolling`** 함수 내에서 디스크를 `base_serial` 기준으로 정렬하도록 수정하였습니다.
+  - **`prepare_eval_data`** 함수 내에서 디스크를 `base_serial` 기준으로 그룹화하도록 변경하여, 물리 디스크 조각(`_0`, `_1` 등)이 시간 순서대로 정렬 및 통합되어 평가되도록 하였습니다.
+  - **`build_subsets`** (방법 B 언더배깅 서브셋 생성) 함수에서도 가중치 부여 대상 고장 날짜(fail_date) 산출 시 `base_serial` 기준으로 그룹화하여 매칭하도록 보완하였습니다.
+  - 이에 따라 베이스라인 모델 역시 최종 모델과 동일하게 `base_serial` 관점에서 공정하게 비교할 수 있는 환경이 조성되었습니다. (최종 실행은 사용자가 수행 예정)
+
+### 2) 최종 모델의 오탐 원인 분석 - 분석 완료
+- 정상 디스크(Normal Disks) 6,255개 중 조기 경보(False Alarm)를 유발한 82개(1.31%) 디스크의 알람 시점 데이터를 분석하였습니다.
+- **주요 오탐 유발 피처 (Standardized Difference 및 SHAP 기여도 기준):**
+  1. **`smart_198_raw`** (Offline Uncorrectable Sector Count) - SHAP: 2.0222, Std Diff: 40.0699
+  2. **`error_density_14d`** (14일 평균 에러 밀도) - SHAP: 2.0028, Std Diff: 27.9146
+  3. **`smart_187_raw`** (Reported Uncorrectable Errors) - SHAP: 0.6698, Std Diff: 14.6036
+  4. **`multi_error_count`** (다중 에러 카운트) - SHAP: 0.5027, Std Diff: 71.1565
+- **오탐 원인 해석:**
+  정상 디스크 중 일부가 일시적인 배드 섹터나 단순 언디텍티드 오류 등으로 인해 `smart_198_raw`나 `smart_187_raw` 값이 튀는 현상이 발생합니다. 모델은 이 피처들을 고장의 강력한 징후로 판단하여 예측 확률을 대폭 상승시킵니다. 이로 인해 정상 디스크에서 오탐이 빈번하게 발생하였고, 허용 False Alarm Rate(FAR <= 1%) 제약조건을 만족하기 위해 임계값이 극단적으로 높게(T = 0.9720 또는 0.9261) 설정될 수밖에 없었습니다. 높은 임계값은 결과적으로 실제 고장 디스크들의 탐지 시점을 늦추거나 미탐(FN)으로 만들어 전체 Recall을 떨어뜨리는 결과를 낳았습니다.
+
+### 3) 피처 엔지니어링 및 하이퍼파라미터 튜닝 파이프라인 재점검 (과적합 검토) - 분석 완료
+- **학습과 평가의 목적 함수 괴리:**
+  - **학습/튜닝 단계 (`val_tune`):** Optuna를 사용해 샘플링된 검증 데이터셋(`val_tune_sampled.parquet`)에서 **행(Row) 단위 PR-AUC**를 극대화하도록 파라미터를 튜닝하였습니다.
+  - **평가 단계:** 슬라이딩 윈도우(14일) 내에서 특정 횟수(2회) 이상의 알람이 발생하면 디스크 전체를 고장으로 판정하는 **디스크(Disk) 단위 롤링 알람 FAR & Recall**을 사용합니다.
+- **과적합 및 괴리 메커니즘:**
+  - Optuna는 행 단위 분류 정확도(PR-AUC)를 높이기 위해 에러가 발생한 극소수의 행들을 확실하게 고장(1)으로 밀어내도록 파라미터를 학습시켰습니다.
+  - 이 과정에서 에러 밀도나 섹터 에러 피처에 과도한 가중치를 부여하게 되어, 실제로는 고장 나지 않는 정상 디스크의 에러 발생 행들마저 예측 확률이 극단적으로 치솟게 되었습니다.
+  - 행 단위 PR-AUC는 향상되었을지 모르나, 디스크 단위 평가에서는 단 1회의 예측 확률 급증(혹은 14일 내 2회)으로도 디스크 전체가 False Alarm으로 간주되므로, 디스크 레벨 FAR이 폭발적으로 증가하였습니다.
+  - 결국 이를 억제하기 위해 임계값을 상향하면서 최종 디스크 레벨 Recall(23.07%)이 튜닝을 거치지 않은 베이스라인(29.57%)보다 낮아지는 현상이 발생하였습니다.
 
 ---
 
@@ -57,11 +78,14 @@
 * **최종 모델 평가 데이터 및 예측 확률 캐시 경로**:
   * 데이터: `C:\Workspace\06_ML_projdect\26_1_COIN\data\split_group_stratified\test_with_failure_date.parquet`
   * 예측 확률: `C:\Workspace\06_ML_projdect\26_1_COIN\models\underbagging_ensemble_4\test_with_failure_date_probs.npy`
+* **분석 결과 파일**:
+  * 정상 디스크 오탐 상세 통계 및 SHAP 보고서: [scratch/false_alarm_analysis_report.md](file:///C:/Workspace/06_ML_projdect/26_1_COIN/scratch/false_alarm_analysis_report.md)
 * **핵심 참조 노트북**:
   * 베이스라인 데이터 준비: [10a_baseline_data_split.ipynb](file:///C:/Workspace/06_ML_projdect/26_1_COIN/notebooks/10a_baseline_data_split.ipynb)
   * 베이스라인 학습/평가: [10b_baseline_training.ipynb](file:///C:/Workspace/06_ML_projdect/26_1_COIN/notebooks/10b_baseline_training.ipynb)
   * 최종 평가: [08c_final_evaluation_labeled.ipynb](file:///C:/Workspace/06_ML_projdect/26_1_COIN/notebooks/08c_final_evaluation_labeled.ipynb)
+  * 롤링 평가 기반 Optuna 최적화: [11a_rolling_optuna_tuning.ipynb](file:///C:/Workspace/06_ML_projdect/26_1_COIN/notebooks/11_rolling_optuna/11a_rolling_optuna_tuning.ipynb)
 * **임시 검증용 스크립트 (Scratch)**:
   * 최적 임계값 및 FAR-Recall 곡선 초고속 검증: [scratch/fast_eval.py](file:///C:/Workspace/06_ML_projdect/26_1_COIN/scratch/fast_eval.py)
-  * 베이스라인 검증용: [scratch/fast_baseline_eval.py](file:///C:/Workspace/06_ML_projdect/26_1_COIN/scratch/fast_baseline_eval.py)
   * 누적 변수 제외 베이스라인 학습 스크립트: `C:\Workspace\06_ML_projdect\26_1_COIN\train_no_cumulative.py`
+

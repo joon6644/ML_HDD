@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_ROOT = Path(os.environ.get("ML_HDD_DATA_DIR", PROJECT_ROOT / "data")).expanduser()
+DATA_ROOT = Path(os.environ.get("ML_HDD_DATA_DIR", PROJECT_ROOT / "data2")).expanduser()
 
 # 06a_feature_engineering.ipynb 출력 디렉터리 (train/val_*/test.parquet)
 FE_SPLIT_REL = "split_group_stratified"

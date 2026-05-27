@@ -50,6 +50,17 @@ class AsymmetricSampler:
 
     def split(self, df: pd.DataFrame, target_col: str = "failure") -> list[pd.DataFrame]:
         """전체 데이터를 n_subsets 개의 언더샘플링된 서브셋으로 분할."""
+        # Calculate days_to_failure on the fly if missing but required metadata columns exist
+        if "days_to_failure" not in df.columns and "serial_number" in df.columns and "date" in df.columns:
+            df = df.copy()
+            base_serials = df['serial_number'].str.replace(r'_\d+$', '', regex=True)
+            fail_dates = df[df[target_col] == 1].groupby(base_serials)['date'].max().reset_index()
+            fail_dates.columns = ['base_serial', 'fail_date']
+            df['base_serial'] = base_serials
+            df = df.merge(fail_dates, on='base_serial', how='left')
+            df['days_to_failure'] = (pd.to_datetime(df['fail_date']) - pd.to_datetime(df['date'])).dt.days
+            df.drop(columns=['base_serial', 'fail_date'], inplace=True)
+
         df_pos = df[df[target_col] == 1].copy()
         df_neg = df[df[target_col] == 0].copy()
 
