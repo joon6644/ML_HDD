@@ -9,7 +9,7 @@ from config.path_utils import PROJECT_ROOT, fe_data_path
 _BASE = PROJECT_ROOT
 
 # ── 학습 산출물 (06c + 07에서 저장된 앙상블·임계값) ─────────
-MODEL_SAVE_DIR = str(_BASE / "models" / "underbagging_ensemble_4")
+MODEL_SAVE_DIR = str(_BASE / "models2" / "06d_optuna_tuning" / "underbagging_ensemble_4")
 N_SUBSETS = 10  # subset_*.pkl 개수 (06c SAMPLER_KWARGS.n_subsets 와 일치)
 
 # ── 입력 경로 ────────────────────────────────────────────────

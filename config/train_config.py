@@ -51,15 +51,15 @@ TARGET_COL = "failure"
 _BASE = PROJECT_ROOT
 
 # ── 입력 데이터 ──────────────────────────────────────────────
-# 1. 학습 데이터 (피처 선택용 샘플을 쓸 경우 fs_sample_data 하위 참조)
+# 1. 학습 데이터 (피처 선택용 샘플을 쓸 경우 05_feature_selection 하위 참조)
 TRAIN_PATH = fe_data_path("train.parquet")
-# 2. 검증 및 테스트 데이터 (06a → split_group_stratified)
+# 2. 검증 및 테스트 데이터 (06a → 03_splitting)
 VAL_TUNE_PATH = fe_data_path("val_tune.parquet")
 VAL_CALIB_PATH = fe_data_path("val_calib.parquet")
 TEST_PATH = fe_data_path("test.parquet")
 
 # 3. 사전 분할된 서브셋 데이터 (SEED에 따라 동적 결정)
-SUBSET_DIR = data_path(f"06b_subset_generation/seed_{SEED}")
+SUBSET_DIR = data_path(f"06_subset_generation/seed_{SEED}")
 VAL_TUNE_SAMPLED_PATH = str(Path(SUBSET_DIR) / "val_sampled.parquet")
 
 REQUIRED_DATA_PATHS = [
@@ -75,7 +75,7 @@ REQUIRED_DATA_PATHS = [
 VAL_TUNE_SAMPLE_SIZE = 1_000_000
 
 # ── 출력 디렉토리 ────────────────────────────────────────────
-MODEL_SAVE_DIR = str(_BASE / "models" / "underbagging_ensemble_4")
+MODEL_SAVE_DIR = str(_BASE / "models2" / "06d_optuna_tuning" / "underbagging_ensemble_4")
 
 
 # ════════════════════════════════════════════════════════════
@@ -161,7 +161,7 @@ LGBM_PARAMS = dict(
 
 OPTUNA_TRIALS = 300         # 탐색 횟수
 OPTUNA_TIMEOUT  = None       # 초 단위 타임아웃. None = n_trials 로만 제한
-OPTUNA_DB_PATH  = str(_BASE / "models" / "optuna_study.db")  # SQLite 저장 경로 (절대 경로)
+OPTUNA_DB_PATH  = str(_BASE / "models2" / "06d_optuna_tuning" / "optuna_study.db")  # SQLite 저장 경로 (절대 경로)
 OPTUNA_STUDY_NAME = "hdd_failure_prediction" # Study 이름
 
 # Optuna 탐색 범위

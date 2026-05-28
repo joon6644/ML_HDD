@@ -42,8 +42,8 @@ def get_lgbm_device() -> str:
 
 # ─── 경로 ────────────────────────────────────────────────────
 BASE_DIR        = PROJECT_ROOT
-TRAIN_PATH      = data_path("fs_sample_data/fs_train.parquet")
-TEST_PATH       = data_path("fs_sample_data/fs_test.parquet")
+TRAIN_PATH      = data_path("05_feature_selection/fs_train.parquet")
+TEST_PATH       = data_path("05_feature_selection/fs_test.parquet")
 FEATURE_GROUP_PATH = str(BASE_DIR / "config" / "json" / "feature_groups.json")
 
 REQUIRED_DATA_PATHS = [

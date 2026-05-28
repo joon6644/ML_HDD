@@ -4,105 +4,8 @@
 
 ### 데이터 분할 전
 
-- ST4000DM000_v3.parquet
-    - https://drive.google.com/file/d/1otLyzULzpUBAG22Ayl3LAF9Zrx2U3Zoy/view?usp=sharing
-    - EDA 결과
-        
-        ```python
-        [C:/Workspace/06_ML_projdect/26_1_COIN/data/ST4000DM000_v3.parquet]
-        종합 EDA 및 데이터 무결성 검증을 시작합니다 ...
-        
-        === [1. 데이터 규격 확인] ===
-        총 행 수(Rows): 79,698,388 개
-        총 열 수(Columns): 27 개
-        
-        === [2. 상위 5개 데이터 샘플 (생략 없음)] ===
-          serial_number       date  smart_3_raw  smart_4_raw  smart_5_raw  smart_9_raw  smart_10_raw  smart_183_raw  smart_184_raw  smart_187_raw  smart_189_raw  smart_191_raw  smart_192_raw  smart_193_raw  smart_197_raw  smart_198_raw  smart_199_raw  smart_241_raw  smart_242_raw  Total_Reads  seek_error_count  total_seeks  failure  timeout_total  Timeout_5s  smart_190_raw  smart_194_raw
-        0    S3008532_1 2014-04-19            0            2            0          562             0              1              0              0              1              0              1           1541              0              0              0     2721830352     8918128525    101001152                 0     29220189        0              0           0             19             19
-        1    S3008532_1 2014-04-20            0            2            0          586             0              1              0              0              1              0              1           1541              0              0              0     2725742872     9298167283     47333632                 0     31344455        0              0           0             19             19
-        2    S3008532_1 2014-04-21            0            2            0          610             0              1              0              0              1              0              1           1541              0              0              0     2727616876     9383480381     64054464                 0     32087252        0              0           0             19             19
-        3    S3008532_1 2014-04-22            0            2            0          634             0              1              0              0              1              0              1           1543              0              0              0     2748947918     9627727670     64019112                 0     33729684        0              0           0             19             19
-        4    S3008532_1 2014-04-23            0            2            0          658             0              1              0              0              1              0              1           1543              0              0              0     3138614586     9750647272    206676600                 0     37215343        0              0           0             19             19
-        
-        === [3. 하드디스크 개체 및 클래스 분포 통계] ===
-        [개체 단위 통계 (물리적인 하드디스크 개수)]
-        - 전체 고유 개체 수 (접미사 통합): 37,024 개
-        - 정상 작동 하드: 31,282 개 (84.49%)
-        - 고장 발생 개체: 5,742 개 (15.51%)
-        - 개체 단위 비율 (Class 1 : 0) = 1 : 5.45
-        
-        [행 단위 클래스 분포 (❗진짜 ML 모델이 학습할 Target 레이블 비율)]
-        - 총 데이터 행 수: 79,698,388 개
-        - Class 0 (정상인 날): 79,641,737 개 (99.93%)
-        - Class 1 (고장 임박): 56,651 개 (0.07%)
-        - 실제 타겟 데이터 불균형 비율 (Class 1 : 0) = 1 : 1405.8
-        
-        === [4. 컬럼별 결측치 집계 (전체 열)] ===
-                          Missing_Count  Missing_Ratio(%)
-        smart_183_raw            643857          0.807867
-        smart_184_raw            643843          0.807849
-        smart_189_raw            643843          0.807849
-        smart_191_raw            643843          0.807849
-        smart_187_raw            643835          0.807839
-        Timeout_Total            643835          0.807839
-        smart_190_raw            643835          0.807839
-        Timeout_5s               643835          0.807839
-        smart_241_raw            643834          0.807838
-        smart_242_raw            643834          0.807838
-        smart_10_raw             643823          0.807824
-        total_seeks              643823          0.807824
-        smart_198_raw            643823          0.807824
-        smart_193_raw            643823          0.807824
-        seek_error_count         643823          0.807824
-        smart_4_raw              643823          0.807824
-        smart_3_raw              643823          0.807824
-        smart_199_raw            643823          0.807824
-        smart_192_raw            643823          0.807824
-        smart_197_raw                47          0.000059
-        Total_Reads                  47          0.000059
-        smart_5_raw                  47          0.000059
-        smart_9_raw                  47          0.000059
-        smart_194_raw                47          0.000059
-        date                          0          0.000000
-        serial_number                 0          0.000000
-        failure                       0          0.000000
-        
-        === [5. 열 별 간단한 기초 통계 (Numeric Data)] ===
-                 column_name column_type         min              max                         avg                   std
-        0      serial_number     VARCHAR    S3000A9T         Z307Y2X9                         NaN                   NaN
-        1               date        DATE  2013-05-10       2025-03-13  2018-12-03 17:57:16.998821                   NaN
-        2        smart_3_raw      BIGINT           0            10590         0.03669847528729049    12.868347441464088
-        3        smart_4_raw      BIGINT           1            30092          11.379990111892969    135.17048733607095
-        4        smart_5_raw      BIGINT           0            65488           6.258733591455812     312.2209587739599
-        5        smart_9_raw      BIGINT           0            78175          30905.879550064914     20269.12116244334
-        6       smart_10_raw      BIGINT           0           262144        0.005803270184334073     32.12870716175001
-        7      smart_183_raw      BIGINT           0            64730            3.28137920393203     179.4619903956368
-        8      smart_184_raw      BIGINT           0              333        0.010213960500310261    0.5971151020876532
-        9      smart_187_raw      BIGINT           0            65535          0.4031310884775985    61.880417991481934
-        10     smart_189_raw      BIGINT           0            65535           3.128280088134085     307.0485473313004
-        11     smart_191_raw      BIGINT           0          1967599           1.267518420351417    429.14639982566064
-        12     smart_192_raw      BIGINT           0            30005          2.2735257223918697     134.8660418565826
-        13     smart_193_raw      BIGINT           1          1581930          31981.087960385335    50088.166238432204
-        14     smart_197_raw      BIGINT           0            65312          0.5984284666603035     86.81145044979996
-        15     smart_198_raw      BIGINT           0            65312           0.585893211859429     84.87418327087757
-        16     smart_199_raw      BIGINT           0            11534          1.4491102442977202     68.79426019448928
-        17     smart_241_raw      BIGINT           0     199023000000          42063431087.659195    19529017555.087357
-        18     smart_242_raw      BIGINT         234  120701120197255          209417265959.08783    378260490686.41986
-        19       Total_Reads      BIGINT           0        244140624          121872413.16616563     70461470.00364728
-        20  seek_error_count      BIGINT           0            65535          3.1137767945469057    415.29004513649284
-        21       total_seeks      BIGINT           0       4294442148           465282428.4418848     289694937.4520153
-        22           failure      BIGINT           0                1       0.0007108173881760319  0.026651681667939988
-        23     Timeout_Total      BIGINT           0            63680          0.9278961579859922    113.67378058130164
-        24        Timeout_5s      BIGINT           0            21067          0.3928797624091303     79.20851438897874
-        25     smart_190_raw      BIGINT          11               97           24.42909014993735     4.883111312823633
-        26     smart_194_raw      BIGINT          11               97           24.41146281827874     4.874396579419348
-        
-        === [6. 시계열 연속성(Date Gap) 검사] ===
-        ✅ 모든 개체의 날짜가 하루도 빠짐없이 연속적입니다.
-        
-        모든 종합 검증 완료. 총 소요 시간: 24.03초
-        ```
-        
+- ST4000DM000
+    - 
 
 ---
 
@@ -111,13 +14,13 @@
 `(훈련:검증1:검증2:테스트 = 6:1:1:2)` 그룹 층화 분할
 
 - train_raw.parquet (훈련)
-    - https://drive.google.com/file/d/1bXc2SSWI21UXGcuvpeJdyDZCgwyoXp-h/view?usp=sharing
+    - 
 - val_tune_raw.parquet (검증1)
-    - https://drive.google.com/file/d/1tk26QJyUT_PbjtPt2JENEsO24BgaS670/view?usp=sharing
+    - 
 - val_calib_raw.parquet (검증2)
-    - https://drive.google.com/file/d/1wJTlQyk1Im89Qxi5l9lcxs8fPlfiONfh/view?usp=sharing
+    - 
 - test_raw.parquet (테스트)
-    - https://drive.google.com/file/d/1KcCDTXmx6PHILRLkMzGQx9zyTx4k6DzI/view?usp=sharing
+    - 
 
 ---
 
@@ -126,9 +29,8 @@
 train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 언더샘플링함 (클래스 불균형은 다름).
 
 - fs_sample_train.parquet
-    - [https://drive.google.com/file/d/11fU3EnwZPIIWyDp-AYiPkxP8g59VIHOm/view?usp=sharing](https://drive.google.com/file/d/1-AReRkLyZIko11HDexNLfqakuXuQaaJ1/view?usp=sharing)
+    - 
 - fs_sample_test.parquet
-    - [https://drive.google.com/file/d/1d5rcAzEOiiDwaq3v0w9O-2D2NQji58e3/view?usp=sharing](https://drive.google.com/file/d/1LRo5pJnb5svoN8fhZyhawon2kh-05FaE/view?usp=sharing)
 
 ---
 
@@ -137,41 +39,43 @@ train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 �
 group 내부 고상관 특성을 필터링한 결과물
 
 - fs_train.parquet
-    - [https://drive.google.com/file/d/1LjgwwRVbfmJ8gCxUieBly0QurWUCTT40/view?usp=sharing](https://drive.google.com/file/d/1ryADNuOrGtR4bzV8Ha7mdm5xsyr7oegp/view?usp=sharing)
+    - 
 - fs_test.parquet
-    - https://drive.google.com/file/d/13qsAKr9m1S9mH1rYwDchVnvtOItCCGAH/view?usp=sharing
+    - 
 
 ---
 
 ### 변수 생성한 데이터셋
 
 - train subset (train.parquet에서 42번 시드로 추출한 10개의 subset)
-    - https://drive.google.com/drive/folders/1-7yp0UPK3kgXBPJrkpJ_aaYozg03gvZO?usp=sharing
+    - 
 - val_tune.parquet (Reranking 용 원본)
-    - https://drive.google.com/file/d/1jDtyB1j98km8xHKzECsTg28ejLFmhlZf/view?usp=sharing
+    - 
 - val_sampled.parquet (val_tune.parquet에서 샘플링된 Optuna 전용 검증셋)
-    - https://drive.google.com/file/d/1r2-UAVFcHtpCSbb7K3BKGJ_kyIlqV4t-/view?usp=sharing
+    - 
 - val_calib.qarquet
-    - https://drive.google.com/file/d/1KvrNZQgaA5Fl2Tah6BYOgqFL7Eqenflv/view?usp=sharing
+    - 
 - test.parqeut
-    - https://drive.google.com/file/d/1Ho6U8SY1R9bIHfx6Tf4jzuJVN3cGIlH9/view?usp=sharing
+    - 
 
 ---
 
 ### 최종 모델
 
 - 각 서브셋의 가중치 pkl파일
-    - https://drive.google.com/drive/folders/1-7yp0UPK3kgXBPJrkpJ_aaYozg03gvZO?usp=sharing
+    - 
 - 임계값
     
     
     | FPR | Recall | threshold |
     | --- | --- | --- |
-    | 0.1% | 26.3% | 0.8790 |
-    | 0.5% | 44.7% | 0.5720 |
-    | 1.0% | 51.2% | 0.3410 |
-    | 5.0% | 61.2% | 0.0960 |
+    | 0.1% |  |  |
+    | 0.5% |  |  |
+    | 1.0% |  |  |
+    | 5.0% |  |  |
 </aside>
+
+'max_depth': 9, 'num_leaves': 80, 'n_estimators': 506, 'learning_rate': 0.016534476178347253, 'min_child_samples': 49, 'feature_fraction': 0.6559834139907077, 'bagging_fraction': 0.9480114410775667, 'lambda_l1': 0.4111680887927762, 'lambda_l2': 0.01575019857369936
 
 ![image.png](attachment:b5046a6a-8f23-4221-a232-6277eed6cc66:image.png)
 
@@ -185,7 +89,12 @@ group 내부 고상관 특성을 필터링한 결과물
     
     원본 데이터에서 `model`이 ST4000DM000인 모든 행을 추출함
     
+    → ST4000DM000_raw.parquet로 저장
+    
 - 이후 아래의 공정을 거침
+    
+    → ST4000DM000_cleaned_1.parquet로 저장
+    
 
 ```python
 # 상수 열 (분산 0) 삭제 
@@ -198,7 +107,7 @@ group 내부 고상관 특성을 필터링한 결과물
 
 - 중복 날짜가 있는지 확인함. (없음)
 - 디코딩 및 이상치 처리
-    - [smart_1_raw](https://www.notion.so/smart_1_raw-33814366e96b800cb943c3f8df0aca0e?pvs=21) , [smart_7_raw](https://www.notion.so/smart_7_raw-33814366e96b8043b155eeab57d40028?pvs=21)  디코딩
+    - [smart_1_raw](https://www.notion.so/smart_1_raw-33814366e96b800cb943c3f8df0aca0e?pvs=21) , ‣  디코딩
         
         <aside>
         
@@ -208,7 +117,7 @@ group 내부 고상관 특성을 필터링한 결과물
             
             10진수 원시값을 16진수로 변환 후, 비트 연산을 통해 상위 16비트(실제 에러 횟수, `>> 32`)와 하위 32비트(총 작업 횟수, `& 0xFFFFFFFF`)로 각각 분리 추출함.
             
-        - **V3 데이터셋 반영 결과**
+        - **반영 결과**
             
             `smart_1_raw, smart_7_raw` 원본을 삭제하고, 비트 연산을 거친 변수 3개 `Total_Reads`, `total_seeks`, `seek_error_count`를 생성함.
             
@@ -218,7 +127,7 @@ group 내부 고상관 특성을 필터링한 결과물
     ```python
     # smart_1 삭제 → Read_Error_Count, Total_Reads
     # smart_7 삭제 → seek_error_count, total_seeks
-    # - Read_Error_Count는 분산이 0이라 삭제함
+    # - Read_Error_Count는 분산이 0이라 삭제함 -> 이거 좀 이상함. 이유 알아내야 함
     ```
     
     - [smart_188_raw](https://www.notion.so/smart_188_raw-33414366e96b80538a2ada639bd6f5f4?pvs=21)  디코딩
@@ -231,7 +140,7 @@ group 내부 고상관 특성을 필터링한 결과물
             
             원시 값을 비트 연산하여 3단계로 분해 추출함: `& 0xFFFF` (하위: 전체 초과), `>> 16 & 0xFFFF` (중간: 5초 지연), `>> 32 & 0xFFFF` (상위: 7.5초 지연).
             
-        - **V3 데이터셋 반영 결과**
+        - **반영 결과**
             
             `smart_188_raw`를 삭제하고, 3가지 변수(`Timeout_Total`, `Timeout_5s`, `Timeout_7_5s`)로 생성함.
             
@@ -304,18 +213,34 @@ group 내부 고상관 특성을 필터링한 결과물
     ```
     
 - 타겟변수 레이블링
-    - 고장으로부터 10일 내의 구간`D-1 ~ D-10`을 모두 1(고장 임박)로 레이블링
-    - 고장 당일 `D-DAY` 는 삭제 (오늘 고장나는지를 예측하는 것이 아니기 때문)
+    - 고장으로부터 10일 내의 구간`D-1 ~ D-30`을 1(고장 임박)로 레이블링
+    - 고장 당일 `D-DAY` 삭제는 훈련 시에만 적용할 것임 (일단 아무것도 적용 안함)
+
+<aside>
+
+(필요)
+
+- 원본 백블레이즈 데이터
+
+(중간 산출물)
+
+→ ST4000DM000_raw.parquet 
+
+(산출물)
+
+→ ST4000DM000_cleaned_1.parquet
+
+</aside>
 
 ---
 
-## 2. 결측치 보간
+## 2. 데이터 정제2
 
 - HDD 개체의 일 단위 기록 누락 처리
     
     ```python
     # - **Case 1)** 마지막이 1로 끝났다가 다시 기록되는 경우    
-    #     → 해당 개체 삭제
+    #     → 해당 개체 데이터 전부 삭제
         
     # - **Case 2)** 마지막이 0으로 끝났다가 다시 기록되는 경우   
     #     → 1일 공백은 보간, 2일 이상 공백부터는 공백 전과 공백 후를 다른 시리얼 넘버를 부여. 
@@ -323,197 +248,66 @@ group 내부 고상관 특성을 필터링한 결과물
     #     - 끊겨있던 구간이 포함되지 않게 파생변수를 생성하게 되는 효과 유도
     #     - 이후 데이터 분할 단계에서는 이를 같은 개체로 간주하여 분할함
     
-    # - **Case 3)** 중간에 마지막이 0으로 끝난 경우   
-    #     → 마지막 10일 삭제 (라벨 오염 방지 조치)
+    # - **Case 3)** 마지막이 0으로 끝난 경우 (이후 추가적인 데이터 없음)  
+    #     → 마지막 30일 삭제 (라벨 오염 방지 조치)
     ```
     
 - 사이에 빈 시계열 행 생성
 - 일괄 Forward fill 적용
-- 2013~2014년의 특정 오류 배치 89대 개체 제거 (마지막 데이터가 2014-02-13 이기 때문에 후처리로 전부 삭제됨)
+- 2014-03 이전 데이터 전부 제거 (~ 2014-02-마지막날)
+- 여전히 결측치가 남아있다면 분기 조건으로 사용하도록 놔둠
+
+→ ST4000DM000_cleaned_2.parquet로 저장
 
 <aside>
 
-여전히 결측치가 남아있다면 분기 조건으로 사용하도록 놔둠
+(필요)
+
+→ ST4000DM000_cleaned_1.parquet
+
+(산출물)
+
+→ ST4000DM000_cleaned_2.parquet
 
 </aside>
-
-- 데이터 컬럼
-    
-    
-    | **이름** | **설명** | **비고** |
-    | --- | --- | --- |
-    | **smart_5_raw** | 불량 섹터 대체 횟수 |  |
-    | **smart_184_raw** | 데이터 전송 경로 오류 |  |
-    | **smart_187_raw** | 복구 불가 오류 횟수 |  |
-    | **smart_197_raw** | 불안정 섹터 수 |  |
-    | **smart_198_raw** | 복구 불가 섹터 수 |  |
-    | **Timeout_5s** | 5초 초과 응답 지연 횟수 | 188에서 파생됨 |
-    | **Timeout_7_5s** | 7.5초 초과 응답 지연 횟수 | 188에서 파생됨 |
-    | **Timeout_Total** | 전체 응답 지연 횟수 | 188에서 파생됨 |
-    | **seek_error_count** | 보이스 코일 액추에이터 탐색 오류 | 7에서 파생됨 |
-    | **smart_9_raw** | 누적 사용 시간 |  |
-    | **smart_189_raw** | 헤드 정렬 불량 쓰기 횟수 |  |
-    | **smart_191_raw** | 외부 충격 감지 횟수 |  |
-    | **smart_194_raw** | 드라이브 현재 온도 | 100도 이상은 ffill 적용 |
-    | **smart_199_raw** | 케이블/통신 연결 오류 수 |  |
-    | **smart_241_raw** | 누적 데이터 쓰기량 | 값 매우 큼 |
-    | **smart_242_raw** | 누적 데이터 읽기량 | 값 매우 큼 |
-    | **Total_Reads** | 총 읽기 섹터 시도 횟수 | 1에서 파생됨 |
-    | **total_seeks** | 총 탐색 작업 횟수 | 7에서 파생됨 |
-    | **smart_3_raw** | 모터 가동 소요 시간 |  |
-    | **smart_4_raw** | 모터 온오프 횟수 |  |
-    | **smart_10_raw** | 모터 재가동 시도 횟수 |  |
-    | **smart_183_raw** | SATA 속도 저하 횟수 |  |
-    | **smart_190_raw** | 내부 기류 온도 | 100도 이상은 ffill 적용 |
-    | **smart_192_raw** | 비정상 전원 차단 횟수 |  |
-    | **smart_193_raw** | 헤드 파킹 횟수 |  |
-    | **smart_240_raw** | 헤드 실제 동작 시간 | 해독 방법이 명확하지 않음 |
-    | **smart_1_raw** | 읽기 오류율 | [삭제] 48비트 2구간 |
-    | **smart_7_raw** | 탐색 오류율 | [삭제] 48비트 2구간 |
-    | **smart_12_raw** | 전원 온오프 횟수 | [삭제] 분포 확인 |
-    | **smart_188_raw** | 명령 응답 지연 횟수 | [삭제] 48비트 3구간 |
 
 ---
 
 ## 3. 데이터 분할
 
-- ~~관측 종료일을 기준으로 그룹 기반 `훈련 : 검증 : 테스트 = 6 : 2 : 2`홀드아웃 분할을 적용.~~  → 적용 불가
-    
-    <aside>
-    
-    마지막 관측일 순으로 정렬 후 10등분하여 고장 개체 수를 카운트함
-    
-    ```python
-    10% 구간(Decile) 고장 개체 수:
-    
-    - D01 `2605`, D02 `443`, D03 `178`, D04 `259`, D05 `1302`
-    - D06 `762`, D07 `64`, D08 `49`, D09 `19`, D10 `61`
-    ```
-    
-    고장날 개체는 과거에 이미 죽고 살아남은 개체들은 최근에 몰려있음.
-    
-    생존자 편향이 극심하여 검증, 테스트 데이터셋에는 고장 개체가 수십건밖에 없음.
-    
-    →  평가지표가 불안정해지며 통계적 유의성을 보장받지 못하게 됨
-    
-    </aside>
-    
-
 그룹 층화 분할
 
 - 개체를 구분하여 시간과 상관없이 랜덤 층화 분할 `훈련 : 검증 : 보정 : 테스트 = 6 : 1 : 1 : 2`
-    - 장단점 및 의미
-        
-        <aside>
-        
-        ### 1. 잃는 것 (Trade-off)
-        
-        - **시간적 내러티브 (엄격한 OOT 모사 포기):** "과거의 데이터로 학습해서 미래의 고장을 예측했다"는 직관적인 달력 기반의 시간 흐름 서사는 포기해야 합니다.
-        
-        ### 2. 얻는 것 (Gains)
-        
-        - **평가의 무결성 및 통계적 유의성:** Test 셋에 충분하고 균등한 고장 개체(약 1,148개)를 강제 배정하여, 운에 따라 널뛰지 않는 '진짜 성적표'를 얻게 됩니다.
-        - **치명적 편향의 완벽한 중화:** 특정 시기에 몰려 죽은 '초기 불량(Lot) 편향'과 끝까지 살아남은 '생존자 편향'을 모델 학습에서 완전히 배제합니다.
-        - **개체 누수(Data Leakage) 원천 차단:** Train과 Test 셋 간의 시리얼 넘버(Entity)가 100% 격리되어 모델의 커닝을 막습니다.
-        
-        ### 3. 결과가 의미하는 것 (Core Implication)
-        
-        - **순수 물리적 고장 징후의 일반화:** 이 파이프라인에서 나온 최종 성적표는 단순히 특정 시기의 하드디스크를 잘 맞췄다는 뜻이 아닙니다. **"이 모델은 하드디스크가 언제 제조되었든, 수명이 한 달이든 10년이든 상관없이, '기계가 죽기 직전에 내뿜는 본질적인 물리적 전조증상(S.M.A.R.T. 패턴)' 그 자체를 완벽하게 학습하고 일반화했다"**는 가장 강력하고 학술적인 증명이 됩니다.
-        </aside>
-        
-    - 4부분으로 분할하는 이유
-        
-        <aside>
-        
-        임계값 과적합 방지를 위해
-        
-        ### 🚨 전통적인 3분할의 치명적 문제점
-        
-        보통은 검증 셋(Validation) 하나를 가지고 다음 두 가지 작업을 모두 수행합니다.
-        
-        1. **Optuna 튜닝:** "어떤 하이퍼파라미터가 가장 성능(PR-AUC)이 좋지?"
-        2. **임계값(Threshold) 설정:** "오탐률(FPR) 0.2%를 맞추려면 컷오프를 0.85로 해야겠군!"
-        
-        **[임계값 과적합의 위험성]**
-        하이퍼파라미터를 튜닝하는 과정에서, 모델은 이미 해당 검증 셋의 '특정 노이즈와 패턴'에 알게 모르게 최적화(Overfitting)되어 버립니다. 즉, 모델에게 검증 셋은 이미 '익숙한 문제집'이 된 상태입니다.
-        이 익숙해진 문제집을 바탕으로 "임계값을 0.85로 하면 오탐률이 0.2% 방어된다!"라고 확정 지은 뒤, 이를 태어나서 처음 보는 **Test 셋(실전)에 적용하면 오탐률이 1%, 2%로 미친 듯이 폭발**해 버립니다. 실무 관제 화면이 깡통 알람으로 도배되는 것이죠.
-        
-        </aside>
-        
-    - 각 분할 데이터 별 설명
-        
-        <aside>
-        
-        ```python
-        "train_raw": 0.6,
-        "val_tune_raw": 0.1,
-        "val_calib_raw": 0.1,
-        "test_raw": 0.2,
-        ```
-        
-        1. train_raw (60%)
-        
-        - 고장 표본: 약 3,400개
-        - 역할: 복잡한 파생변수 패턴을 깊고 확실하게 학습하기 위한 물량 확보.
-        
-        2. val_tune_raw (10%) : 하이퍼파라미터 튜닝용
-        
-        - 고장 표본: 약 570개
-        - 역할: Optuna 튜닝 전용. 파라미터 탐색 시 평가지표(PR-AUC)가 요동치지 않고 안정적으로 수렴하도록 유도.
-        
-        3. val_calib_raw (10%) : 임계값 탐색용
-        
-        - 고장 표본: 약 570개
-        - 역할: 튜닝에 오염되지 않은 독립된 셋. 오직 `목표 오탐률 n% 제약과 MCC 최대화의 최적 조합`을 달성하는 최적의 임계값을 정밀하게 도출하여, 실무 환경 도입 시 오탐 폭발을 원천 차단.
-        
-        4. test_raw (20%) : 최종 성능 평가용
-        
-        - 고장 표본: 약 1,100개
-        - 역할: 충분한 고장 표본을 통한 모델 성능의 통계적 신뢰도 확보. 1천 개 이상의 충분한 고장 데이터로 증명하는 흔들림 없는 최종 성적표.
-        </aside>
-        
 - 주의: 앞서 2일 이상의 공백은 시리얼번호_n 형식으로 분리했지만, 여기서는 하나의 개체로 취급해야 함
     - 물리적 개체 누수 방지 처리
         1. **물리적 동일성:** 이름표만 `A`와 `A_1`로 찢어졌을 뿐, 실제로는 공장에서 똑같이 찍혀 나온 **"완벽하게 똑같은 금속 하드디스크 1개"**입니다. 고유의 진동, 제조상 노이즈 등 물리적 특성(Signature)이 완전히 같습니다.
         2. **커닝(데이터 누수) 방지:** 만약 이 둘을 남남으로 취급하면, `A`는 수명이 짧아 Train 셋에 들어가고 나중에 부활한 `A_1`은 Test 셋에 들어가게 됩니다. 그러면 모델은 Train에서 이 하드디스크 특유의 물리적 패턴을 미리 외워버립니다(개체 누수).
         3. 결론: Test 셋은 반드시 '태어나서 한 번도 본 적 없는 낯선 디스크'만을 통과시켜야 합니다. 따라서 파생된 `_1`, `_2` 꼬리표들을 모두 원조 시리얼 넘버(Base) 기준으로 묶어 단일 그룹(Group)으로 간주하고, 무작위 층화 분할을 수행할 때 가족 단위 전체가 Train, Val, Test 중 한 곳으로 통째로 몰아져서 배정되도록(Family Binding) 처리하여 데이터 누수를 완벽히 차단합니다.
         
-- 데이터 분할 결과
-    
-    ```python
-    [설정]
-    - split_ratio: {'train_raw': 0.6, 'val_tune_raw': 0.1, 'val_calib_raw': 0.1, 'test_raw': 0.2}
-    - random_seed: 42
-    - 엔진: DuckDB(parquet scan/집계/저장) + Pandas(최종 merge)
-    - 기준: 시간 무관 랜덤 층화 + 개체(물리 디스크) 단위 그룹 분할
-    - 누수 방지: serial_number의 _n 꼬리표를 base serial로 통합
-    
-    [개체 기준 분할 요약]
-            split  total_entities  failed_entities  failed_ratio
-         test_raw            7406             1149      0.155144
-        train_raw           22214             3445      0.155082
-    val_calib_raw            3702              574      0.155051
-     val_tune_raw            3702              574      0.155051
-    
-    [row 기준 분할 요약(참고)]
-            split  total_rows  failed_rows  failed_row_ratio
-         test_raw    15954479        11293          0.000708
-        train_raw    47875242        34028          0.000711
-    val_calib_raw     8004501         5663          0.000707
-     val_tune_raw     7864166         5667          0.000721
-    
-    [누수 체크]
-    한 개체가 속한 split 최대 개수: 1 (정상은 1)
-    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_group_stratified\test_raw.parquet
-    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_group_stratified\train_raw.parquet
-    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_group_stratified\val_calib_raw.parquet
-    저장 완료: C:\Workspace\06_ML_projdect\26_1_COIN\data\split_group_stratified\val_tune_raw.parquet
-    ```
-    
+
+<aside>
+
+(필요)
+
+- ST4000DM000_cleaned_2.parquet
+
+(산출물)
+
+→ train_raw.parquet
+
+→ val_tune_raw.parquet
+
+→ val_calib_raw.parquet
+
+→ test_raw.parquet
+
+</aside>
 
 ---
 
 ## 4. 특성 생성
+
+→ 각 fs 데이터셋 생성
 
 자세한 내용은 [파생변수 생성](https://www.notion.so/34b14366e96b8051a73ec7aa7cbad935?pvs=21) 참고
 
@@ -584,50 +378,49 @@ group 내부 고상관 특성을 필터링한 결과물
 | **Total** | **RFE 투입 피처 총 개수 (중복 키 제외 순수 변수)** | **319 - 15 = 304개** |
 </aside>
 
+```markdown
+# RFE용 데이터셋 제작
+모든 고장 개체 사용, 정상 개체 샘플링 사용(모든 샘플링엔 seed=42 사용)
+1. 고장 개체수 비율 fs_sample_train 8 : fs_sample_test 2 (홀드아웃)
+2. 학습 및 테스트 세트 모두 정상 개체는 고장 개체수의 10배수 샘플링하여 배정
+    - 원본 행 단위 불균형 1 : 1405.8이지만 타협한 수치
+- (serial_number 단위로 움직이는 것)
+```
+
+<aside>
+
+(필요)
+
+- train_raw.parquet
+
+(중간 산출물)
+
+→ fs_sample_diff.parquet
+
+→ fs_sample_7d.parquet
+
+→ fs_sample_14d.parquet
+
+→ fs_sample_28d.parquet
+
+→ fs_sample_windowed.parquet
+
+→ fs_sample_daily_status.parquet
+
+→ fs_sample_daily_impact.parquet
+
+(산출물)
+
+→ fs_train.parquet
+
+→ fs_validation.parquet
+
+</aside>
+
 ---
 
 ## **5. 특성 선택**
 
-#### fs_sample_train, fs_sample_test 파일 생성
-
-```markdown
-# RFE용 데이터셋 제작
-1. 고장 개체 비율 fs_sample_train 8 : fs_sample_test 2
-2. serial_number 단위에서 failure 비율 유지하여 분할
-3. 학습 세트는 정상 행은 배정받은 개체 내부에서 랜덤시드를 사용하여 고장 행의 10배수 샘플링
-4. 테스트 세트는 정상 행은 배정받은 개체 내부에서 랜덤시드를 사용하여 고장 행의 100배수 샘플링
-    - 원본 불균형 1 : 1405.8이지만 타협한 수치
-- (같은 serial_number는 train과 test에 동시에 존재하면 안 됨)
-- seed = 42
-```
-
-- 특성 선택 필요성
-    
-    <aside>
-    
-    - 변수 중요도 희석 경계
-        - 트리 기반 모델이 다중공선성에 강하긴 하지만, XAI 분석 시 변수 중요도가 희석될 가능성 존재
-    - 연산 부담
-    - 노이즈 과적합 차단
-    - XAI 해석력 증가
-    - 공통적으로 총 컬럼의 개수는 15~25개 사이가 좋다고 하는데 근거?
-        
-        ### A. 코어(Core) 결함 변수는 원래 소수입니다.
-        
-        - 가장 유명한 클라우드 스토리지 기업인 Backblaze의 공식 통계와 Stanford 대학의 연구(CS229 프로젝트 등)에 따르면, 수십 개의 SMART 속성 중 **실제 하드디스크의 물리적 고장과 직접적인 상관관계를 가지는 핵심 변수는 5~7개 내외**입니다. (대표적으로 SMART 5, 187, 188, 197, 198이 '운명의 5대 변수'로 불립니다).
-        - 여기에 온도(190, 194), 누적 작업량(Reads/Seeks) 등 보조 지표를 합쳐도 원본 변수 기준으로는 10~15개면 고장 징후를 설명하는 데 충분합니다.
-        
-        ### B. 정보량의 포화 상태 (Elbow Point)
-        
-        - **선행 연구 트렌드:** IEEE나 MDPI 등에 게재된 SSD/HDD 고장 예측 관련 연구들을 살펴보면, Feature Selection(유전 알고리즘, 전진 선택법, RFE 등)을 수행했을 때 성능 지표(F1-Score, AUC) 그래프가 **변수 15개~20개 부근에서 고점을 찍고 평탄해지는 현상(Elbow Effect)**이 명확하게 관찰됩니다.
-        - 즉, 상위 20개 내외의 변수가 모델이 고장을 예측하는 데 필요한 **전체 정보량(Information Gain)의 95% 이상을 제공**합니다. 그 이상의 변수를 투입해 보았자 성능 향상은 0.1% 미만에 불과하며, 오히려 앞서 언급한 다중공선성과 노이즈 때문에 오탐률(FPR)이 상승하는 역효과가 발생합니다.
-        
-        ### C. 파생 변수의 통제
-        
-        - 준태 님은 현재 차분 변수, 이동 평균, 누적합 등 다양한 시계열 파생 변수를 생성할 계획이십니다. 핵심 변수 10개에 대해 3가지 방식의 파생 변수만 만들어도 컬럼은 단숨에 40개로 폭발합니다.
-        - RFE를 돌리면 원본 `smart_5`와 `smart_5_3일_이동평균` 중 예측력이 미세하게 더 높은 단 하나만 살아남고 나머지는 제거됩니다. 이런 식으로 불필요한 시계열 중복 특성을 솎아내고 가장 강력한 특성만 남기면 자연스럽게 15~25개 선으로 최적화됩니다.
-    </aside>
-    
 - 재귀적 특성 제거(RFE, Recursive Feature Elimination)
     
     <aside>
@@ -721,18 +514,211 @@ group 내부 고상관 특성을 필터링한 결과물
             이 변수가 얼마나 고장을 뚜렷하게 변별하는가? 
             
     2. 해석 용이성 (고장을 설명하기 쉬운)
+- 제거 변수
+    
+    ```json
+        "drop_v1": [
+            "error_saturation_score",
+            "shock_seek_interaction",
+            "log_shock_fly_interaction",
+            "shock_fatigue_rate",
+            "smart_191_raw",
+            "s191_diff",
+            "s189_diff",
+            "s191_28d_sum",
+            "s191_14d_sum",
+            "s199_14d_max",
+            "s199_diff",
+            "s199_14d_burst",
+            "s199_14d_sum",
+            "s199_28d_sum",
+            "s199_28d_max",
+            "s191_14d_max",
+            "s191_28d_max",
+            "s194_diff",
+            "s190_diff",
+            "s189_28d_max",
+            "s189_28d_highfly_burst",
+            "s189_28d_sum",
+            "s192_14d_burst",
+            "temp_error_index",
+            "is_warmup_7d",
+            "total_reads_14d_sum",
+            "total_reads_14d_mean"
+        ]
+        ---------------------
+            "총 탐색량": [
+            "total_seeks_7d_accel",
+            "total_seeks_28d_accel",
+            "total_seeks_7d_sum",
+            "total_seeks_14d_sum",
+            "total_seeks_28d_sum",
+            "total_seeks_7d_mean",
+            "total_seeks_28d_mean",
+            "total_seeks_7d_ewma",
+            "total_seeks_14d_ewma",
+            "total_seeks_28d_ewma",
+            "total_seeks_7d_std",
+            "total_seeks_14d_std",
+            "total_seeks_28d_std",
+            "total_seeks_7d_asfd",
+            "total_seeks_14d_asfd",
+            "total_seeks_7d_max",
+            "total_seeks_14d_max",
+            "total_seeks_7d_zscore",
+            "total_seeks_14d_zscore",
+            "total_seeks_28d_zscore"
+        ],
+        "총 읽기량": [
+            "s242_14d_asfd",
+            "s242_14d_ewma",
+            "s242_14d_max",
+            "s242_14d_std",
+            "s242_14d_sum",
+            "s242_14d_zscore",
+            "s242_28d_accel",
+            "s242_28d_ewma",
+            "s242_28d_max",
+            "s242_28d_mean",
+            "s242_28d_std",
+            "s242_28d_sum",
+            "s242_28d_zscore",
+            "s242_7d_accel",
+            "s242_7d_asfd",
+            "s242_7d_ewma",
+            "s242_7d_max",
+            "s242_7d_mean",
+            "s242_7d_std",
+            "s242_7d_sum",
+            "total_reads",
+            "total_reads_14d_std",
+            "total_reads_14d_zscore",
+            "total_reads_28d_accel",
+            "total_reads_28d_ewma",
+            "total_reads_28d_sum",
+            "total_reads_28d_zscore",
+            "total_reads_7d_accel",
+            "total_reads_7d_ewma",
+            "total_reads_7d_mean",
+            "total_reads_7d_sum",
+            "total_reads_7d_zscore"
+        ],
+        "총 기록량": [
+            "s241_7d_accel",
+            "s241_28d_accel",
+            "s241_7d_sum",
+            "s241_14d_sum",
+            "s241_28d_sum",
+            "s241_7d_mean",
+            "s241_28d_mean",
+            "s241_7d_ewma",
+            "s241_14d_ewma",
+            "s241_28d_ewma",
+            "s241_7d_std",
+            "s241_14d_std",
+            "s241_28d_std",
+            "s241_14d_max",
+            "s241_28d_max",
+            "s241_7d_asfd",
+            "s241_14d_asfd",
+            "s241_14d_zscore",
+            "s241_28d_zscore"
+        ],
+        "Reallocated / Pending": [
+            "s5_14d_max",
+            "s5_14d_sum",
+            "s5_28d_sum"
+        ],
+        "Sector 열화": [
+            "s198_error_rate",
+            "s187_error_rate",
+            "s197_28d_sum",
+            "s198_28d_sum",
+            "s197_28d_max",
+            "s197_14d_sum",
+            "s198_14d_sum",
+            "s197_14d_max",
+            "s198_14d_max",
+            "s197_diff"
+        ],
+        "읽기/쓰기 안정성": [
+            "s183_14d_sum",
+            "s183_28d_sum"
+        ],
+        "Seek 경로 이상": [
+            "seek_error_count_diff",
+            "seek_error_14d_spike_ratio"
+        ],
+        "기본 I/O 이상": [
+            "smart_199_raw",
+            "timeout_total",
+            "timeout_total_14d_sum",
+            "timeout_total_diff",
+            "timeout_total_28d_sum"
+        ],
+        "열 스트레스": [
+            "s190_7d_asfd",
+            "s190_7d_cid",
+            "s190_14d_asfd",
+            "s190_14d_cid",
+            "s190_28d_asfd",
+            "s190_28d_cid",
+            "smart_190_raw"
+        ],
+        "온도 수준": [
+            "s194_7d_asfd",
+            "s194_7d_cid",
+            "s194_14d_asfd",
+            "s194_14d_cid",
+            "s194_28d_asfd",
+            "s194_28d_cid"
+        ],
+        "시스템성 실패": [
+            "s184_3d_sum",
+            "s184_7d_sum",
+            "s184_14d_sum",
+            "s184_diff"
+        ],
+        "직접 손상 발생": [
+            "smart_5_raw",
+            "s5_daily_failure_speed"
+        ]
+    ```
+    
 
 ### 3. 특성 선택
 
 - 진행중
-- 특성 계층 분석
+</aside>
+
+<aside>
+
+(필요)
+
+- fs_train.parquet
+- fs_validation.parquet
+
+(중간 산출물)
+
+→ fs_train_filtered.parquet
+
+→ fs_validation_filtered.parquet
+
+(산출물)
+
+→ train.parquet
+
+→ val_tune.parquet
+
+→ val_calib.parquet
+
+→ test.parquet
+
 </aside>
 
 ---
 
-## **6. 하이퍼파라미터 최적**
-
-최종 선택된 변수를 반영한 데이터셋을 제작
+## **6. 하이퍼파라미터 최적화**
 
 ### 방법론
 
@@ -755,8 +741,6 @@ group 내부 고상관 특성을 필터링한 결과물
         
         → 극단적 불균형 환경에서 계산량을 줄이며 성능을 개선할 수 있음.
         
-    - 우리는 언더배깅을 기반으로 두고 샘플링 전략을 커스텀한 방식에 가까움.
-        - 논문에서는 언더배깅 앙상블이라고 명명하고 구현 전략을 구체적으로 설명하는 쪽이 나을듯
     </aside>
     
 
@@ -767,24 +751,21 @@ group 내부 고상관 특성을 필터링한 결과물
 full train: 학습을 위한 10개의 서브셋을 만들고 더 이상 사용되지 않음.
 
 - 10개의 Subset:  앙상블 학습을 위한 경량 데이터셋
-    - 모든 고장 데이터 + 10배수로 추출된 정상 데이터(near-failure에 샘플링 가중치 부여)
+    - 모든 고장 개체 (고정) + 같은 개수의 정상 개체 (서브셋 내 / 서브셋 간 비복원 추출)
 
-full validation: Optuna 루프에서는 미사용, 최종 선택 (rerank), 최종 검증 과정에서 사용됨
+val_tune.parquet: Optuna 루프에서는 미사용, 최종 선택 (rerank) 과정에서 사용됨
 
-- sampled validation: 옵튜나 내부에서 사용되는 경량 데이터셋
-    - 모든 고장 데이터 + 100배수로 추출된 정상 데이터(near-failure에 샘플링 가중치 부여)
+- val.sampled.parquet: 옵튜나 내부에서 사용되는 경량 데이터셋
+    - val_tune.parquet 고장 개체의 80% 랜덤 추출 + 그에 상응하는 3배수로 추출된 정상 개체
 </aside>
 
 ### [Optuna]
 
-- 앞서 실험을 통해 bagging_fraction = 1, lambda_l1 = 0, lambda_l2 = 0, scale_pos_weight = 1로 수렴하는 것을 확인함
-- 따라서 이를 고정하고 옵튜나 진행함.
-
 ```markdown
-1. 10개의 subset을 순차적으로 학습함
+1. 10개의 subset을 순차적으로 학습함 (롤링 추론, 고장 당일 포함 안함)
 
 2. 각 subset 학습 직후:
-    - sampled validation을 예측하고
+    - val_sampled.parquet을 예측하고
     - 현재까지의 누적 ensemble PR-AUC 계산
     
 3. 중간 PR-AUC를 Optuna에 리포트함:
@@ -804,21 +785,21 @@ full validation: Optuna 루프에서는 미사용, 최종 선택 (rerank), 최�
 
 ### [Reranking]
 
-- sampled validation을 사용했을 때의 과적합 리스크를 최소화하기 위한 재평가 단계
+- val_sampled.parquet에 편향되는 리스크를 최소화하기 위한 재평가 단계
 - full validation 기준 최종 선택 (전체 검증 데이터 사용)
 
 ```markdown
-1. [Optuna Stage 2]의 결과 중 best parameter이 될 수 있는 후보 선택
-	- 분포를 보고 20개의 trial을 선정함
+1. 앞의 결과 중 best parameter이 될 수 있는 후보 선택
+	- 분포를 보고 n개의 trial을 선정함
 
 2. 저장된 ensemble 모델 재사용
 
-3. full validation을 예측하여 PR-AUC 계산
+3. val.tune을 예측하여 PR-AUC 계산
 
 4. 이를 기준으로 최종 하이퍼파라미터 선택
 ```
 
-- 탐색 공간
+- 탐색 공간 (수정 필요)
     
     
     | **Parameter** | **Type** | **Range** | **Log Scale** | **Rationale (설계 논리)** |
@@ -837,99 +818,49 @@ full validation: Optuna 루프에서는 미사용, 최종 선택 (rerank), 최�
 
 ---
 
-### 데이터 샘플링 심화
+개체 단위 롤링 추론 방식을 기준으로 한 하이퍼파라미터 튜닝
 
-### 학습 데이터 샘플링
+|  | 이번 결과 | 행 단위 추론(기존 결과) | 베이스라인 |
+| --- | --- | --- | --- |
+| 개체 단위 롤링 추론 기준 PR-AUC |  | ? | ? |
+| 행 단위 추론 PR-AUC | ? | 0.12721 | 0.111309(언더배깅 적용), 0.096265 |
 
-전체 학습 데이터(train.parquet)는 연산 효율성과 앙상블 다양성 확보를 위해
-10개의 서로 다른 언더샘플링 서브셋으로 분할하였다.
+<aside>
 
-- 모든 failure sample은 각 서브셋에 100% 포함
-- normal sample은 비복원 추출 기반으로 10:1 비율 유지
-- 각 서브셋 구성
-    - failure: 33,984
-    - normal: 339,840
-    - total: 373,824
-- 전체 ensemble
-    - 10 subsets → 총 3,738,240 samples
+(필요)
 
----
+- seed_42
+    - subset_0~9.parquet
+- val_tune.parquet
 
-### Near-failure Importance Sampling
+(중간 산출물)
 
-고장 직전 구간의 정보 손실을 줄이기 위해
-time-to-failure 기반 importance sampling을 적용하였다.
+→ val_sampled.parquet
 
-- failure 이전 일정 구간
-    - failure: D-1 ~ D-10
-    - near-failure: D-11 ~ D-30
-- 해당 구간의 샘플링 확률을 3배 증가
+(산출물)
 
-이를 통해 정상 상태와 명확히 구분되지 않는   
+→ models\underbagging_ensemble
 
-고장 직전 패턴이 학습 과정에서 충분히 반영되도록 하였다.
+- subset_00~09.pkl
+</aside>
 
-> **인용 포인트:** *Learning from Imbalanced Data* (He & Garcia, 2009) 논문을 보면, "결정 경계(Decision Boundary) 근처에 있는 다수 클래스 샘플(Borderline majority examples)을 보존하는 것이 모델의 판별 성능 향상에 기여할 수 있다고 보고하였다."고 되어 있습니다.
-> 
+옵튜나 연산 효율성을 위한 학습 전략
 
----
-
-### 검증 데이터 샘플링
-
-전체 검증 데이터에 대한 반복 평가 과정은
-하이퍼파라미터 탐색 시 주요 연산 병목으로 작용하였다.
-
-따라서 Optuna 기반 튜닝 단계에서는
-검증셋에 대해 별도의 언더샘플링을 적용하였다.
-
-튜닝 단계의 목적은 절대적인 성능 추정이 아니라
-모델 간 상대적 성능 비교의 안정적 수행에 있으므로,
-실제 분포를 일부 압축한 검증셋을 사용하는 것은 타당하다고 판단하였다.
-
-- 모든 failure sample 유지
-- normal sample만 추가 샘플링 수행
-- 최종 검증 비율은 약 100:1 유지
-- near-failure 구간에 대해서는 학습 데이터와 동일하게 3배 importance sampling 적용
-
----
-
-### (참고) 언더샘플링의 근거
-
-정상 클래스는 다음 특성을 가진다:
-
-- 높은 temporal redundancy
-- 장기간 안정 상태 반복
-
-따라서 전체 정상 데이터를 모두 사용하는 대신:
-
-- 행(row) 단위 random undersampling을 통해
-- 정보량이 높은 다양한 정상 상태를 유지하면서
-- 계산 비용을 줄인다
-
-이로 인해:
-
-- redundancy 감소
-- ensemble diversity 증가
-- memory constraint 해결
-
----
-
-### 성능 비교
-
-- 소요시간
+1. 학습 데이터 언더샘플링하여 저장
     
+    모든 고장 데이터 (고정) + 같은 개수의 정상 데이터 랜덤 샘플링하여 10개의 서브셋 생성
     
-    | 노트북 학습 & 검증 시간 | 데스크탑 학습 & 검증 시간 |
-    | --- | --- |
-    | 2~30분 예상 | 3m 28.6s |
-    | 8m 8.8s | 1m 11.4s |
-
-| PR-AUC | sampled validation (100:1 불균형) | full validation (1:1426.4 불균형) |
-| --- | --- | --- |
-| 튜닝 전 | 0.40907  | 0.11249 |
-| Optuna | 0.4207 | 0.12682 |
-| Reranking (최종 성능) | 0.42 | 0.12721 |
-- Full validation 기준 PR-AUC 0.11249 → 0.12721 (약 13%의 성능 향상)
+    서브셋 내 / 서브셋 간 비복원 추출 보장
+    
+    → 이후 언더배깅 시행
+    
+2. 언더샘플링한 하나의 검증 데이터셋 생성
+    
+    고장 개체의 80%만 추출하여 정상 개체를 10배수 붙임. 
+    
+    → 이것으로 옵튜나 내부 루프를 돌음
+    
+3. 이후 옵튜나 상위 결과들로 각각 전체 검증 데이터을 예측하여 리랭킹을 함.
 
 ---
 
@@ -938,10 +869,6 @@ time-to-failure 기반 importance sampling을 적용하였다.
 제약 조건 최적화
 
 <aside>
-
-val_calib.parquet에 고장 당일 행 추가
-
-- 실제 평가 환경과 같게 세팅하여 임계값 최적화의 의미를 살림
 
 개체 단위 롤링 평가 적용
 
@@ -955,42 +882,29 @@ val_calib.parquet에 고장 당일 행 추가
 
 ## disk-level threshold
 
-롤링 추론 결과 (리드타임 = 10, 20, 30일)
+롤링 추론 결과 (리드타임 = 30일)
 
 평가 기준은 리드타임 내에서 생애 최초 알람이 울려야만 고장 탐지 성공으로 간주
 
-| 허용 오탐율 | threshold | Disk FAR | Disk Recall (10일) | Precision (10일) | Disk Recall (20일) | Precision (20일) | Disk Recall (30일) | Precision (30일) |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0.10   %  |    0.9820    |    0.10   %  | 10.62% | 95.24%  | 12.57   % |  95.95  % | 13.63   % | 96.25  % |
-| 0.50   %  |    0.9720    |    0.48   %  | 14.69% | 84.69% | 17.88   % | 87.07  % | 20.35   % | 88.46  % |
-| 1.00   %  |    0.9590    |    0.99   %  | 18.76% | 77.37% | 22.65   % | 80.50  % | 25.13   % | 82.08  % |
-| 2.00   %  |    0.9401    |    1.95   %  | 20.71% | 65.73% | 25.84   % | 70.53  % |  28.85   % | 72.77  % |
-
-![image.png](attachment:67e17d2b-0d88-460f-aa06-b9ef457a93c8:image.png)
-
-![image.png](attachment:904970be-64f0-4e60-93a1-0082679a0534:image.png)
+| 허용 오탐율 | threshold | Disk FAR | Disk Recall | Precision |
+| --- | --- | --- | --- | --- |
+| 0.10   %  |  |  |  |  |
+| 0.50   %  |  |  |  |  |
+| 1.00   %  |  |  |  |  |
+| 2.00   %  |  |  |  |  |
 
 <aside>
 
-리드타임(Horizon)의 변화는 정상 디스크의 오탐(False Alarm) 판정에는 영향을 주지 않으며, 오직 고장 디스크에 대해 “정탐(True Positive)으로 인정할 수 있는 기간”의 범위만을 조정한다.
+(필요)
 
-따라서 리드타임 기준을 10일에서 30일로 완화할 경우, 동일한 임계값과 동일한 Disk FAR 조건에서도 더 이른 시점의 precursor alarm이 정탐으로 재분류되면서 Recall이 점진적으로 증가하는 현상이 나타난다.
+- 모델 가중치 pkl
+- val_calib.parquet
 
-이는 본 연구 모델이 단순히 고장 직전의 급격한 이상 신호만을 탐지하는 것이 아니라, 일부 디스크에 대해서는 실제 고장보다 상당히 이른 시점부터 위험 신호를 포착하고 있음을 시사한다.
+(산출)
 
-즉, 고정된 단일 horizon 기반의 이분법적 평가(binary hit/miss)는 이러한 조기 precursor detection의 가치를 충분히 반영하지 못하며, 모델의 실제 예지 능력을 과소평가할 가능성이 존재한다.
-
-따라서 HDD predictive maintenance 환경에서는 단일 Recall 수치 자체보다, 낮은 false alarm burden 하에서 얼마나 안정적으로 조기 위험 신호를 제공할 수 있는지, 그리고 실제 운영 가능한 리드타임을 어느 정도 확보할 수 있는지를 함께 해석하는 것이 중요하다.
+→ threshold 기준
 
 </aside>
-
-허용 오탐율 1%를 만족하는 임계값 0.9590 으로 결정. 리드타임은 30일
-
-모델 학습은 실제 고장 임박 상태를 가장 명확하게 반영하기 위해 고장 전 10일 구간을 기준으로 수행하였다. 그러나 HDD 예지보전의 실제 목적은 단순한 임박 고장 탐지가 아니라, 운영자가 대응 가능한 수준의 사전 경고를 제공하는 데 있다. 따라서 평가 단계에서는 보다 현실적인 유지보수 대응 시간을 반영하기 위해 30일 리드타임 기준을 추가적으로 적용하였다. 또한 실험 결과, 30일 이후부터는 Recall 증가폭이 점차 둔화되는 경향을 보여, 약 30일 전후가 실질적인 precursor signal의 주요 발생 구간임을 확인하였다.
-
-→ 허용 오탐율 1%를 만족하는 임계값 0.9590 으로 결정. 리드타임은 30일
-
-- FPR=0.99%, Recall=25.13%, Precision=82.08%
 
 ---
 
@@ -1015,152 +929,43 @@ val_calib.parquet에 고장 당일 행 추가
         - 미탐율 (고장 개체에서 안울린 비율)
     - **특징**
         - 실제 운영 환경과 동일한 구조
-        - “얼마나 빨리, 얼마나 정확하게 잡는가” 평가
-- 주의할 점
-    
-    <aside>
-    
-    채점 기준을 두 가지로 잡을 수 있는데,
-    
-    1. 언제 알람이 울리던 리드타임 내에서 울리기만 하면 된다.
-    2. 무조건 생애 첫 알람이 리드타임 내에서 울려야 한다.
-    
-    첫 번째 방법이 성능은 훨씬 잘 나오지만, 실무에서는 의미가 없는 가짜 점수라고 볼 수 있다.
-    
-    두 번째 방법은 조건이 매우 어려워지기 때문에 낮은 점수를 각오해야 한다. → 이걸로 진행
-    
-    </aside>
-    
-    <aside>
-    
-    또한, 분류 성능을 나타내는 지표에는 맹점이 존재함.
-    
-    > 
-    > 
-    > 
-    > 리드타임을 30일로 잡는다면, 31일에 고장이라고 울릴 때 가차없이 실패로 기록됨. 
-    > 
-    
-    실제 운영 적용 시에는 이정도 차이는 문제가 없지만 점수화할때는 치명적임.
-    
-    허용하는 리드타임에 따라서도 점수는 계속해서 바뀜.
-    
-    </aside>
-    
 
 <aside>
 
-- 임계값과 리드타임 별 성능
+- 임계값 별 성능
     
     
-    | Threshold | Disk FAR | Disk Recall (10일) | Precision (10일) | Disk Recall (20일) | Precision (20일) | Disk Recall (30일) | Precision (30일) | Disk Recall (40일) | Precision (40일) | Disk Recall (60일) | Precision (60일) |
-    | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-    | 0.9820 | 0.16 % | 9.85% | 91.74% | 11.09% | 92.59% | 11.80% | 93.01% | 11.98% | 93.10% | 12.24% | 93.24% |
-    | 0.9720 | 0.46 % | 14.02% | 84.49% | 17.30% | 87.05% | 19.08% | 88.11% | 19.96% | 88.58% | 20.50% | 88.85% |
-    | 0.9590 (메인) | 1.20 % | 17.13% | 72.01% | 20.67% | 75.65% | 23.07% | 77.61% | 24.31% | 78.51% | 25.91% | 79.56% |
-    | 0.9401 | 1.98 % | 17.57% | 61.49% | 22.89% | 67.54% | 26.00% | 70.26% | 27.42% | 71.36% | 29.99% | 73.16% |
-
-→ 임계값 **0.9590** 및 **30일 Horizon** 기준으로 진행
-
-Disk 기준 FPR=1.20% 제약에서 Recall=23.07%, Precision 77.61%
-
-임계값 튜닝 때보다 성능 소폭 하락 문제가 있지만 전체적인 성능 경향은 비교적 안정적으로 유지되었다.
-
+    | Threshold | Disk FAR | Disk Recall | Precision |
+    | --- | --- | --- | --- |
+    | 0.9820 |  |  |  |
+    | 0.9720 |  |  |  |
+    | 0.9590 (메인) |  |  |  |
+    | 0.9401 |  |  |  |
+- 리드타임 별 성능
 </aside>
 
 <aside>
 
-- 임계값 **0.9590** 및 **30일 Horizon 기준 리드타임 분석**
-    
-    ![image.png](attachment:ea0d1027-5859-40bf-8c5d-cefbd770497f:image.png)
-    
-    기술통계량
-    
-    | 평균 | 표준편차(Std) | 최소(Min) | 10% 백분위수 | 25% 백분위수 | 중앙값(Med) | 75% 백분위수 | 90% 백분위수 | 최대(Max) |
-    | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-    | 102.12 일 | 254.13 일 | 0 일 | 1.0 일 | 3.0 일 | 15.0 일 | 83.8 일 | 275.2 일 | 2106 일 |
-    - 고장 디스크에 대해 한 번이라도 알람을 울린 데이터들의 분포이다.
-    
-    상당수가 d-10일 안에 모여있고, 모델이 선제적으로 예측을 하는 모습을 볼 수 있다. 
-    
-    완전 미탐 개체의 경우 개별적으로 분석을 하는중 (왜 탐지 못했는지) 
-    
-    ---
-    
-    ![image.png](attachment:93f01bb9-a2b2-4654-a126-3381d3c74220:image.png)
-    
-    위의 분포의 cdf 버전이다. 
-    
-    알람을 울린 고장 개체 중에서 리드타임 안에 울린 사례의 비율을 확인할 수 있다. 
-    
-    ---
-    
-    ![image.png](attachment:d045dc93-11d1-4c9c-bbce-6360bbc00614:image.png)
-    
-    - 왼쪽은 하나의 정상 개체에서 울린 오탐 횟수에 대한 분포이다.
-    - 오른쪽은 고장 개체에서 리드타임 전에 울린 오탐 횟수에 대한 분포이다.
-    
-    대부분 한 번 정도 잘못 울리고 끝나는 것을 확인할 수 있다. 이것은 운영 차원에서 상당한 이점이다.
-    
-    다만 만성적으로 고장을 울리는 일부 개체들이 존재하기 때문에 모델의 한계점을 인식하고 이를 보완하는 운영 방법이 도입되어야 한다. 
-    
-    ---
-    
-    아래는 리드타임 구간에 따른 탐지 디스크의 비율을 나타낸 표이다.
-    
-    | 리드타임 구간 | 탐지 디스크 수 | 탐지 건(TP) 중 비율 | 오탐율(FAR) | 리콜(Recall) | 정밀도(Precision) |
-    | --- | --- | --- | --- | --- | --- |
-    | <= 0일 전 | 22 개 | 5.26% | 1.20% | 1.95% | 22.68% |
-    | <= 1일 전 | 68 개 | 16.27% | 1.20% | 6.03% | 47.55% |
-    | <= 3일 전 | 111 개 | 26.56% | 1.20% | 9.85% | 59.68% |
-    | <= 5일 전 | 139 개 | 33.25% | 1.20% | 12.33% | 64.95% |
-    | <= 7일 전 | 171 개 | 40.91% | 1.20% | 15.17% | 69.51% |
-    | <= 10일 전 | 193 개 | 46.17% | 1.20% | 17.13% | 72.01% |
-    | <= 14일 전 | 207 개 | 49.52% | 1.20% | 18.28% | 73.31% |
-    | <= 21일 전 | 238 개 | 56.94% | 1.20% | 21.03% | 75.96% |
-    | <= 30일 전 | 260 개 | 62.20% | 1.20% | 23.07% | 77.61% |
-    | <= 60일 전 | 292 개 | 69.86% | 1.20% | 25.91% | 79.56% |
-    | <= 100일 전 | 329 개 | 78.71% | 1.20% | 29.10% | 81.39% |
-    | 전체 리드타임 | 418 개 | 100.00% | 1.20% | 37.09% | 84.79% |
-    - 전체 고장 디스크 수 : 1,127 개
-    - 탐지 성공한 고장 디스크 수:  418 개 (37.09 %) ← 리드타임이 전체라고 가정했을 때의 수치
-    - 탐지하지 못한 고장 디스크 수: 709 개 (62.91 %) ← Recall이 박살난 원인
-    - (그렇다고 임계값을 낮추면 오탐율이 치솟음)
-    - 딜레마입니다.
+(필요)
+
+- 모델 가중치 pkl
+- test.parquet
+
+(산출물)
+
+→ 성능 지표
+
+→ 리드타임 분석 결과
+
 </aside>
-
-임계값 **0.9590** 및 **30일 Horizon** 기준의 미탐(False Negative) 비율은 다음과 같습니다.
-
-- **전체 고장 디스크 수**: 1,127개
-- **30일 이내 탐지 성공(TP) 수**: 260개 (Recall: 23.07%)
-- **미탐(Miss) 디스크 수**: 867개 (1,127개 - 260개)
-- **미탐 비율**: **76.93%** (전체 고장 디스크 대비 비율)
-
-### 성능이 낮은 이유!!!
-
-1. 미탐이 고장 개체의 **76.93%**임. (잡지 못한 고장 개체) ← Recall 붕괴 원인
-    - 고장 징후가 아예 없는 case와
-    - 고장 징후는 있었지만 임계값을 넘지 못할 정도로 약한 case로 분류 가능.
-    - 애초에 알람을 울리지도 못한 비율이 높음.
-2. 고장 알람이 너무 일찍 울려서 오탐이 됨.  (조기 오탐)
-    - 임계값 **0.9590** 및 **30일 Horizon** 기준 탐지한 고장 개체 중 너무 일찍 울린 비율은 37.8% (62.2%는 리드타임 내에서 탐지했다는 뜻)
-    - 생각보다 심각하지는 않음. 고장을 아예 못잡은 것이 더 큰 문제
-
-기본 변수만 사용한 베이스라인을 만들어서 성능 비교를 하는 것도 방법이 될 수 있을듯. (절대적 성능 향상 주장)
 
 ---
 
-## 9. 고장 해석
+## 9. 고장 해석 (수정 전)
 
 ### **전역적 해석 (Global Interpretability)**
 
 - SHAP
-    
-    
-    ![image.png](attachment:0183137e-5a19-45d9-8064-2c84aafd4903:image.png)
-    
-    ![image.png](attachment:7cdd4c51-7a18-4591-a17d-b92fb10ba29d:image.png)
-    
     - 에러와 관련된 급성 지표 원본이 상위권을 차지함.
 
 ---
@@ -1171,217 +976,23 @@ Disk 기준 FPR=1.20% 제약에서 Recall=23.07%, Precision 77.61%
 
 ### 정탐 (고장 개체를 리드타임 내에 탐지함)
 
-<aside>
-
-[개체 생애 (Lifecycle) 요약: Z300GYTF]
-
-- 데이터 수집 기간 : 2014-04-01 ~ 2017-11-25 (총 1321일간 관측)
-- 시스템 최종 확정 : 2017-11-24 (고장 1.0일 전 감지)
-- 모델 단일 경고 이력: 총 1회 (D-1)
-- 최종 평가 결과 : ✅ 탐지 성공 (Hit) (고장 디스크)
-
-![image.png](attachment:17f3f07d-f8b8-4cc7-875f-c348ac29aa76:image.png)
-
-![image.png](attachment:a14c3b80-3286-4de0-a565-544784650907:image.png)
-
----
-
-[개체 생애 (Lifecycle) 요약: S30110W5]
-  - 데이터 수집 기간 : 2015-04-22 ~ 2015-11-04 (총 197일간 관측)
-  - 시스템 최종 확정 : 2015-11-04 (고장 0.0일 전 감지)
-  - 모델 단일 경고 이력: 총 1회 (D-0)
-  - 최종 평가 결과   : ✅ 탐지 성공 (Hit) (고장 디스크)
-
-![image.png](attachment:42766277-f99d-44fe-a5a6-6849c468407e:image.png)
-
-![image.png](attachment:1dd8ce17-cbf5-4a69-af0c-1856e9ef9687:image.png)
-
----
-
-[개체 생애 (Lifecycle) 요약: Z30262VT]
-
-- 데이터 수집 기간 : 2014-10-18 ~ 2016-06-07 (총 599일간 관측)
-- 시스템 최종 확정 : 2016-06-05 (고장 2.0일 전 감지)
-- 모델 단일 경고 이력: 총 2회 (D-2, D-1)
-- 최종 평가 결과 : ✅ 탐지 성공 (Hit) (고장 디스크)
-
-![image.png](attachment:fd03bc57-fce8-4e21-80db-8e15bc4f49b8:image.png)
-
-![image.png](attachment:54966025-c650-479a-a66b-d1c0c0388283:image.png)
-
-</aside>
-
 ### 오탐 (정상 개체에 알람을 잘못 울림)
-
-<aside>
-
-[개체 생애 (Lifecycle) 요약: Z300BMMZ]
-
-- 데이터 수집 기간 : 2014-04-01 ~ 2018-07-11 (총 1549일간 관측)
-- 시스템 최종 확정 : 2018-01-24 (알람 발령 후 168일 동안 고장 없이 정상 동작함)
-- 모델 단일 경고 이력: 총 4회 (D-168, D-167, D-163, D-155)
-- 최종 평가 결과 : ❌ 오탐 (False Alarm) (정상 디스크)
-
-![image.png](attachment:72045c2e-7eca-40ad-b550-243426515651:image.png)
-
-![image.png](attachment:7b598ba1-7e37-4bd6-8dd2-9434bab664bb:image.png)
-
----
-
-[개체 생애 (Lifecycle) 요약: S300YCMZ]
-
-- 데이터 수집 기간 : 2015-07-23 ~ 2023-11-22 (총 3031일간 관측)
-- 시스템 최종 확정 : 2018-04-18 (알람 발령 후 2044일 동안 고장 없이 정상 동작함)
-- 모델 단일 경고 이력: 총 2회 (D-2044, D-2042)
-- 최종 평가 결과 : ❌ 오탐 (False Alarm) (정상 디스크)
-
-![image.png](attachment:8b857360-9058-4485-a149-2ebd1bb705a9:image.png)
-
-![image.png](attachment:f826cea9-d126-43f7-87ad-42ef32f7a4ee:image.png)
-
----
-
-[개체 생애 (Lifecycle) 요약: Z30251J2]
-
-- 데이터 수집 기간 : 2014-10-16 ~ 2019-02-02 (총 1557일간 관측)
-- 시스템 최종 확정 : 2018-07-14 (알람 발령 후 203일 동안 고장 없이 정상 동작함)
-- 모델 단일 경고 이력: 총 7회 (D-203, D-44, D-43, D-35, D-34, D-33, D-32)
-- 최종 평가 결과 : ❌ 오탐 (False Alarm) (정상 디스크)
-
-![image.png](attachment:1bcbc1a1-9094-48ca-98a4-e5c9fc9d68cf:image.png)
-
-![image.png](attachment:bb154173-df93-48bb-91db-c2f61f745e70:image.png)
-
-</aside>
 
 ### 오탐 (고장 개체를 리드타임 밖에서 탐지함)
 
-고장 탐지를 일찍 했지만 리드타임이라는 기준 때문에 오탐으로 분류된 사례들.
-
-<aside>
-
-[개체 생애 (Lifecycle) 요약: W300CYCF]
-
-- 데이터 수집 기간 : 2014-04-01 ~ 2014-10-01 (총 184일간 관측)
-- 시스템 최종 확정 : 2014-07-19 (고장 74.0일 전 감지)
-- 모델 단일 경고 이력: 총 1회 (D-74)
-- 최종 평가 결과 : ❌ 오탐 (False Alarm) (고장 디스크)
-
-![image.png](attachment:c70d61d8-2af6-495a-9a62-1c12eb7c53c3:image.png)
-
-![image.png](attachment:aa7f3f5a-0141-4cce-9013-423d6e5a1daa:image.png)
-
----
-
-[개체 생애 (Lifecycle) 요약: S301G7S7]
-
-- 데이터 수집 기간 : 2015-08-13 ~ 2018-05-19 (총 984일간 관측)
-- 시스템 최종 확정 : 2017-12-05 (고장 165.0일 전 감지)
-- 모델 단일 경고 이력: 총 16회 (D-165, D-139, D-136, D-128, D-126, D-112, D-111, D-75, D-73, D-72, D-71, D-70, D-64, D-63, D-62, D-15)
-- 최종 평가 결과 : ❌ 오탐 (False Alarm) (고장 디스크)
-
-![image.png](attachment:014e5196-3d17-4219-94d8-fcc3f9650666:image.png)
-
-![image.png](attachment:808eb8db-edf8-4755-b8b3-9219aed2ca7f:image.png)
-
----
-
-[개체 생애 (Lifecycle) 요약: Z30251X4]
-
-- 데이터 수집 기간 : 2014-10-16 ~ 2018-11-27 (총 1490일간 관측)
-- 시스템 최종 확정 : 2018-08-31 (고장 88.0일 전 감지)
-- 모델 단일 경고 이력: 총 6회 (D-88, D-82, D-30, D-21, D-18, D-17)
-- 최종 평가 결과 : ❌ 오탐 (False Alarm) (고장 디스크)
-
-![image.png](attachment:f8a033dc-37fd-4089-a467-5e74a452ccec:image.png)
-
-![image.png](attachment:235810a3-22f6-4c9e-a246-6609699ca4e9:image.png)
-
-</aside>
-
 ### 미탐 (고장 개체에 알람을 울리지 않음) ← Recall 붕괴 원인
 
-<aside>
-
-[개체 생애 (Lifecycle) 요약: Z305D4CF]
-
-- 데이터 수집 기간 : 2016-02-18 ~ 2017-07-25 (총 510일간 관측)
-- 시스템 최종 확정 : 없음 (경보 미발령)
-- 모델 단일 경고 이력: 없음
-- 최종 평가 결과 : ❌ 미탐 (Miss) (고장 디스크)
-
-![image.png](attachment:fa749392-80bb-4fbc-aa53-f109e4275697:image.png)
-
-![image.png](attachment:ab5b8abd-d44f-44ff-a6aa-8b97f353972e:image.png)
-
 ---
 
-[개체 생애 (Lifecycle) 요약: S301L4VD]
-
-- 데이터 수집 기간 : 2015-10-21 ~ 2017-02-16 (총 471일간 관측)
-- 시스템 최종 확정 : 없음 (경보 미발령)
-- 모델 단일 경고 이력: 없음
-- 최종 평가 결과 : ❌ 미탐 (Miss) (고장 디스크)
-
-시계열 중간에 긴 공백이 있어서 시리얼넘버_n 으로 분리했다가 나중에 다시 합친 개체.
-
-그래서 끊겨있는 것이 정상입니다.  
-
-![image.png](attachment:303fa2ea-93cb-46d9-ad30-9c55bb85b56b:image.png)
-
-![image.png](attachment:2cafd107-81d3-4962-9822-0814cd7f8b3a:image.png)
-
----
-
-[개체 생애 (Lifecycle) 요약: S300Z0LB]
-
-- 데이터 수집 기간 : 2015-07-23 ~ 2018-01-04 (총 869일간 관측)
-- 시스템 최종 확정 : 없음 (경보 미발령)
-- 모델 단일 경고 이력: 없음
-- 최종 평가 결과 : ❌ 미탐 (Miss) (고장 디스크)
-
-![image.png](attachment:c6bef2cd-59d1-454c-9187-3cbe58392636:image.png)
-
-![image.png](attachment:68679f3b-83ea-4a76-995e-a1f47694d667:image.png)
-
-</aside>
-
----
-
-고장 예측에 공통적으로 큰 기여를 하는 변수들: smart_198_raw, error_density_14d, multi_error_count
-
-→ 미탐 개체에서는 SHAP 기여도가 낮음. 
-
-현재로썬 자극적인 세 변수로 인한 고장만 탐지하는 모델?
-
-1. 우리가 모르는 고장 원인이 있다 (위의 세 변수가 너무 강해서 모델이 다양한 미세 원인을 학습하지 못했다는 가설)
-2. 절대 예측할 수 없는 돌연사다
-
----
-
-## 한계점
+## 한계점 (수정 전)
 
 1. 모델이 잡아내지 못한 미탐 사례가 많음.
-    - 특정 급성 변수가 지배적인 영향력을 행사함.
-    1. 정말 신호 없이 고장나는 돌연사 현상일 가능성.
-    2. 실제 징후는 존재하지만 SMART 기반 관측 가능성의 한계 / 적합하지 않은 방법론 및 모델일 가능성.
-    - 다른 feature engineering이나 모델로는 예측이 가능할 수도 있음.
-    - 아니면 추후 고장 탐지한 데이터를 거르고 남은 데이터셋으로 2차 학습을 시켜보는 것은 어떤지?
+    - 
 2. 오탐율 대비 재현성이 올라오는 시점이 다소 느림
-    - 아직 실무에 적용했을 때 획기적인 차이를 만들어내는 분류모델은 아님.
-    - 더 낮은 오탐율에서 고장을 잘 잡으려면 모델이 더 정확한 분류를 해야 함.
-    - 현재 모델에서 오탐을 줄이기 위해 모델이 뱉는 확률값을 입력으로 받는 후처리 분류기를 도입하는 것은 어떨지?
-    - 아니면 추후 더 고도화된 딥러닝 아키텍처를 사용하는 것은 어떨지?
+    - 
 3. 분류 성능 지표의 한계
-    - HDD 예지보전에서는 실제 고장 이전에 얼마나 조기에 열화 현상을 탐지하는지가 중요함.
-    - 그러나 고정된 horizon 기반의 이진분류는 리드타임 경계 밖에서 발생한 조기 탐지를 모두 동일한 실패로 처리하는 문제가 있음.
-    - 따라서 labeling horizon 설정에 따라 성능 지표가 크게 달라질 수 있으며, 실제 운영 관점의 예지 능력이 과소평가될 가능성이 존재함.
-    - 이를 보완하기 위해 본 연구에서는 리드타임 기반 분포 및 누적 탐지 분석을 함께 수행함.
+    - 
 4. 단일 모델 / 단일 제조사 제한
-    - 다른 HDD의 데이터를 추가 학습하여 적용 가능한지 후속 실험이 필요함.
-    - 다만 전처리 과정이 복잡하기 때문에 제약이 발생할 수 있음.
+    - 
 5. 미래 누수에 대한 가능성
-    - 시계열 데이터 특성상 과거의 데이터로 미래를 맞추는 것이 가장 이상적임.
-    - 하지만 본 연구에서는 생존자편향 문제 때문에 고장 개체가 초반에 몰려있어 그룹 층화 분할을 사용할 수 밖에 없었음.
-    - 따라서 미래의 데이터를 학습하고 과거의 데이터로 평가하는 상황이 존재함.
-    - 실제 배포 환경에서의 성능은 추가 검증이 필요함.
+    -
