@@ -19,7 +19,7 @@
     - 
 - val_calib_raw.parquet (검증2)
     - 
-- test_raw.parquet (테스트)
+- validation_raw.parquet (테스트)
     - 
 
 ---
@@ -28,9 +28,9 @@
 
 train_raw.parquet으로부터 파생 변수를 생성한 후 8:2 그룹 층화 언더샘플링함 (클래스 불균형은 다름).
 
-- fs_sample_train.parquet
+- fs_train.parquet
     - 
-- fs_sample_test.parquet
+- fs_validation.parquet
 
 ---
 
@@ -40,7 +40,7 @@ group 내부 고상관 특성을 필터링한 결과물
 
 - fs_train.parquet
     - 
-- fs_test.parquet
+- fs_validation.parquet
     - 
 
 ---
@@ -55,7 +55,7 @@ group 내부 고상관 특성을 필터링한 결과물
     - 
 - val_calib.qarquet
     - 
-- test.parqeut
+- validation.parqeut
     - 
 
 ---
@@ -281,8 +281,8 @@ group 내부 고상관 특성을 필터링한 결과물
 - 주의: 앞서 2일 이상의 공백은 시리얼번호_n 형식으로 분리했지만, 여기서는 하나의 개체로 취급해야 함
     - 물리적 개체 누수 방지 처리
         1. **물리적 동일성:** 이름표만 `A`와 `A_1`로 찢어졌을 뿐, 실제로는 공장에서 똑같이 찍혀 나온 **"완벽하게 똑같은 금속 하드디스크 1개"**입니다. 고유의 진동, 제조상 노이즈 등 물리적 특성(Signature)이 완전히 같습니다.
-        2. **커닝(데이터 누수) 방지:** 만약 이 둘을 남남으로 취급하면, `A`는 수명이 짧아 Train 셋에 들어가고 나중에 부활한 `A_1`은 Test 셋에 들어가게 됩니다. 그러면 모델은 Train에서 이 하드디스크 특유의 물리적 패턴을 미리 외워버립니다(개체 누수).
-        3. 결론: Test 셋은 반드시 '태어나서 한 번도 본 적 없는 낯선 디스크'만을 통과시켜야 합니다. 따라서 파생된 `_1`, `_2` 꼬리표들을 모두 원조 시리얼 넘버(Base) 기준으로 묶어 단일 그룹(Group)으로 간주하고, 무작위 층화 분할을 수행할 때 가족 단위 전체가 Train, Val, Test 중 한 곳으로 통째로 몰아져서 배정되도록(Family Binding) 처리하여 데이터 누수를 완벽히 차단합니다.
+        2. **커닝(데이터 누수) 방지:** 만약 이 둘을 남남으로 취급하면, `A`는 수명이 짧아 Train 셋에 들어가고 나중에 부활한 `A_1`은 Validation 셋에 들어가게 됩니다. 그러면 모델은 Train에서 이 하드디스크 특유의 물리적 패턴을 미리 외워버립니다(개체 누수).
+        3. 결론: Validation 셋은 반드시 '태어나서 한 번도 본 적 없는 낯선 디스크'만을 통과시켜야 합니다. 따라서 파생된 `_1`, `_2` 꼬리표들을 모두 원조 시리얼 넘버(Base) 기준으로 묶어 단일 그룹(Group)으로 간주하고, 무작위 층화 분할을 수행할 때 가족 단위 전체가 Train, Val, Validation 중 한 곳으로 통째로 몰아져서 배정되도록(Family Binding) 처리하여 데이터 누수를 완벽히 차단합니다.
         
 
 <aside>
@@ -299,7 +299,7 @@ group 내부 고상관 특성을 필터링한 결과물
 
 → val_calib_raw.parquet
 
-→ test_raw.parquet
+→ validation_raw.parquet
 
 </aside>
 
@@ -361,19 +361,19 @@ group 내부 고상관 특성을 필터링한 결과물
 
 | **파일명** | **포함 내역 및 설명** | **변수 개수** |
 | --- | --- | --- |
-| `fs_sample_diff.parquet` | **기초 데이터**
+| `fs_diff.parquet` | **기초 데이터**
 원본 데이터(19개) +  차분(18개) - failure - date/serial_number   | 40 - 3 = 37개 |
-| `fs_sample_7d.parquet` | **7일 통계적 특징 추출 순수 통계량**
+| `fs_7d.parquet` | **7일 통계적 특징 추출 순수 통계량**
 7일 윈도우가 적용된 핵심 속성(184, 194, 241, 242, Reads, Seeks, 190)의 통계량 | 58 - 2 = 56개 |
-| `fs_sample_14d.parquet` | **14일 통계적 특징 추출 순수 통계량**
+| `fs_14d.parquet` | **14일 통계적 특징 추출 순수 통계량**
 가장 많은 속성(17개)이 포함된 14일 주기 단기/중기 통계 데이터 | 76 - 2 = 74개 |
-| `fs_sample_28d.parquet` | **28일 통계적 특징 추출 순수 통계량**
+| `fs_28d.parquet` | **28일 통계적 특징 추출 순수 통계량**
 하드디스크의 장기 노화 상태 및 누적 피로도를 나타내는 28일 주기 데이터 | 76 - 2 = 74개 |
-| `fs_sample_windowed.parquet` | **윈도우 기반 복합체**
+| `fs_windowed.parquet` | **윈도우 기반 복합체**
 윈도우형 도메인 기반 특징 공학(20개) | 18 - 2 = 16개 |
-| `fs_sample_daily_status.parquet` | **디스크 상태 이력 (정적/이력)**
+| `fs_daily_status.parquet` | **디스크 상태 이력 (정적/이력)**
 손상 여부 플래그 및 장애 발생 후 경과일 등 | 24 - 2 = 20개 |
-| `fs_sample_daily_impact.parquet` | **디스크 부하 보고서 (동적/수치)**
+| `fs_daily_impact.parquet` | **디스크 부하 보고서 (동적/수치)**
 에러 밀도, 작업량 비율 등 수치적으로 모델링된 부하 지표 | 30 - 2 = 27개 |
 | **Total** | **RFE 투입 피처 총 개수 (중복 키 제외 순수 변수)** | **319 - 15 = 304개** |
 </aside>
@@ -381,7 +381,7 @@ group 내부 고상관 특성을 필터링한 결과물
 ```markdown
 # RFE용 데이터셋 제작
 모든 고장 개체 사용, 정상 개체 샘플링 사용(모든 샘플링엔 seed=42 사용)
-1. 고장 개체수 비율 fs_sample_train 8 : fs_sample_test 2 (홀드아웃)
+1. 고장 개체수 비율 fs_train 8 : fs_validation 2 (홀드아웃)
 2. 학습 및 테스트 세트 모두 정상 개체는 고장 개체수의 10배수 샘플링하여 배정
     - 원본 행 단위 불균형 1 : 1405.8이지만 타협한 수치
 - (serial_number 단위로 움직이는 것)
@@ -395,19 +395,19 @@ group 내부 고상관 특성을 필터링한 결과물
 
 (중간 산출물)
 
-→ fs_sample_diff.parquet
+→ fs_diff.parquet
 
-→ fs_sample_7d.parquet
+→ fs_7d.parquet
 
-→ fs_sample_14d.parquet
+→ fs_14d.parquet
 
-→ fs_sample_28d.parquet
+→ fs_28d.parquet
 
-→ fs_sample_windowed.parquet
+→ fs_windowed.parquet
 
-→ fs_sample_daily_status.parquet
+→ fs_daily_status.parquet
 
-→ fs_sample_daily_impact.parquet
+→ fs_daily_impact.parquet
 
 (산출물)
 
@@ -712,7 +712,7 @@ group 내부 고상관 특성을 필터링한 결과물
 
 → val_calib.parquet
 
-→ test.parquet
+→ validation.parquet
 
 </aside>
 
@@ -949,7 +949,7 @@ val_tune.parquet: Optuna 루프에서는 미사용, 최종 선택 (rerank) 과�
 (필요)
 
 - 모델 가중치 pkl
-- test.parquet
+- validation.parquet
 
 (산출물)
 
