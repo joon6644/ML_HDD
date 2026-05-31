@@ -4,16 +4,21 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOKS_ROOT = PROJECT_ROOT / "notebooks2"
 DATA_ROOT = PROJECT_ROOT / "data2"
+RESULTS_ROOT = PROJECT_ROOT / "results"
 
 # Path contract fragments used by the feature-engineering notebooks.
 FE_SPLIT_REL = "03_splitting"
 
-TRAIN_PATH = DATA_ROOT / "03_splitting" / "train.parquet"
-VAL_TUNE_PATH = DATA_ROOT / "03_splitting" / "val_tune.parquet"
-VAL_CALIB_PATH = DATA_ROOT / "03_splitting" / "val_calib.parquet"
-TEST_PATH = DATA_ROOT / "03_splitting" / "test.parquet"
+TRAIN_PATH = DATA_ROOT / "06_hyperparameter_tuning" / "train.parquet"
+VAL_TUNE_PATH = DATA_ROOT / "06_hyperparameter_tuning" / "val_tune.parquet"
+VAL_CALIB_PATH = DATA_ROOT / "06_hyperparameter_tuning" / "val_calib.parquet"
+TEST_PATH = DATA_ROOT / "06_hyperparameter_tuning" / "test.parquet"
 
-MODEL_SAVE_DIR = NOTEBOOKS_ROOT / "models2" / "06d_optuna_tuning" / "seed_42"
+MODEL_SAVE_DIR = RESULTS_ROOT / "models" / "seed_42"
+PREDICTIONS_DIR = RESULTS_ROOT / "predictions"
+OPTUNA_DB_PATH = RESULTS_ROOT / "databases" / "optuna_study.db"
+METRICS_DIR = RESULTS_ROOT / "metrics"
+LOGS_DIR = RESULTS_ROOT / "logs"
 
 TARGET_COL = "failure"
 SERIAL_COL = "serial_number"

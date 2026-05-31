@@ -1,1 +1,1 @@
-from notebooks2.local_config import *  # noqa: F401,F403
+from config.local_config import *  # noqa: F401,F403
